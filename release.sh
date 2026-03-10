@@ -15,9 +15,16 @@ tar -czf "$SCRIPT_DIR/$TARBALL" -C .build/apple/Products/Release darwinkit
 cd "$SCRIPT_DIR"
 
 echo "Creating GitHub release $VERSION..."
-gh release create "$VERSION" "$TARBALL" \
+if ! gh release create "$VERSION" "$TARBALL" \
   --title "$VERSION" \
-  --generate-notes
+  --generate-notes 2>/dev/null; then
+  echo "gh release create failed, falling back to API..."
+  gh api repos/{owner}/{repo}/releases \
+    -f tag_name="$VERSION" \
+    -f name="$VERSION" \
+    -F generate_release_notes=true > /dev/null
+  gh release upload "$VERSION" "$TARBALL"
+fi
 
 rm "$TARBALL"
 echo "Released $VERSION"
