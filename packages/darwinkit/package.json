@@ -1,0 +1,51 @@
+{
+  "name": "@genesiscz/darwinkit",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for DarwinKit — Apple's on-device ML via JSON-RPC",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "tar": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/genesiscz/darwinkit-swift.git",
+    "directory": "packages/darwinkit"
+  },
+  "license": "MIT",
+  "keywords": [
+    "darwinkit",
+    "apple",
+    "macos",
+    "nlp",
+    "ocr",
+    "vision",
+    "embeddings",
+    "json-rpc",
+    "on-device-ml"
+  ]
+}

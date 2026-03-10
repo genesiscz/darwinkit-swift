@@ -1,8 +1,13 @@
 .DS_Store
 /.build
-/Packages
+packages/darwinkit-swift/Packages/
 xcuserdata/
 DerivedData/
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.swiftpm/
 .netrc
 Package.resolved
+
+# TypeScript SDK
+node_modules/
+dist/
+packages/darwinkit-swift/.build/

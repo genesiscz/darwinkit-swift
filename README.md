@@ -36,25 +36,47 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 ### Homebrew (recommended)
 
 ```bash
-brew tap 0xMassi/darwinkit
+brew tap genesiscz/darwinkit-swift
 brew install darwinkit
 ```
 
 ### GitHub Releases
 
 ```bash
-curl -L https://github.com/0xMassi/darwinkit/releases/latest/download/darwinkit-macos-universal.tar.gz | tar xz
+curl -L https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-universal.tar.gz | tar xz
 sudo mv darwinkit /usr/local/bin/
 ```
 
 ### Build from source
 
 ```bash
-git clone https://github.com/0xMassi/darwinkit.git
-cd darwinkit
+git clone https://github.com/genesiscz/darwinkit-swift.git
+cd darwinkit-swift/packages/darwinkit-swift
 swift build -c release
 # Binary at .build/release/darwinkit
 ```
+
+### TypeScript SDK
+
+```bash
+npm install @genesiscz/darwinkit
+# or
+bun add @genesiscz/darwinkit
+```
+
+```typescript
+import { DarwinKit } from "@genesiscz/darwinkit"
+
+const dk = new DarwinKit()
+
+const { score, label } = await dk.nlp.sentiment({ text: "I love this" })
+const { vector } = await dk.nlp.embed({ text: "hello", language: "en" })
+const { text } = await dk.vision.ocr({ path: "/tmp/screenshot.png" })
+
+dk.close()
+```
+
+The SDK auto-downloads the `darwinkit` binary on first use if not found on PATH.
 
 ## Quick Start
 
@@ -664,7 +686,7 @@ while let Some(event) = rx.recv().await {
 ## Architecture
 
 ```
-darwinkit/
+packages/darwinkit-swift/
   Package.swift                          # Swift 5.9, macOS 13+
   Sources/
     DarwinKit/                           # Thin CLI entry point
@@ -693,6 +715,7 @@ All Apple framework calls are behind **provider protocols**. Tests use mock prov
 ## Development
 
 ```bash
+cd packages/darwinkit-swift
 swift build                    # Debug build
 swift build -c release         # Release build
 swift test                     # Run all 43 tests
@@ -702,6 +725,7 @@ swift test --filter NLP        # Run NLP tests only
 ### Build universal binary (arm64 + x86_64)
 
 ```bash
+cd packages/darwinkit-swift
 swift build -c release --arch arm64 --arch x86_64
 ```
 
