@@ -98,8 +98,8 @@ if [ "$SKIP_NPM" = false ]; then
     bun install --frozen-lockfile 2>/dev/null || bun install
     bun run build
 
-    # Update version to match release
-    npm version "$VERSION" --no-git-tag-version --allow-same-version
+    # Update version to match release (sed instead of npm version — avoids bun node_modules crash)
+    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
 
     # Build publish command
     PUBLISH_CMD="npm publish --access public"
