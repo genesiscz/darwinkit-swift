@@ -4,13 +4,14 @@ import PackageDescription
 let package = Package(
     name: "DarwinKit",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     products: [
         .executable(name: "darwinkit", targets: ["DarwinKit"])
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0")
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
+        .package(url: "https://github.com/jkrukowski/swift-embeddings", from: "0.0.26")
     ],
     targets: [
         .executableTarget(
@@ -21,7 +22,10 @@ let package = Package(
             ]
         ),
         .target(
-            name: "DarwinKitCore"
+            name: "DarwinKitCore",
+            dependencies: [
+                .product(name: "Embeddings", package: "swift-embeddings")
+            ]
         ),
         .testTarget(
             name: "DarwinKitCoreTests",
