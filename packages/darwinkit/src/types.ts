@@ -205,6 +205,76 @@ export interface ReadyNotification {
 }
 
 // ---------------------------------------------------------------------------
+// CoreML
+// ---------------------------------------------------------------------------
+
+export type CoreMLComputeUnits =
+  | "all"
+  | "cpuAndGPU"
+  | "cpuOnly"
+  | "cpuAndNeuralEngine"
+
+export interface CoreMLLoadModelParams {
+  id: string
+  path: string
+  compute_units?: CoreMLComputeUnits
+  warm_up?: boolean
+}
+export interface CoreMLModelInfo {
+  id: string
+  path: string
+  dimensions: number
+  compute_units: string
+  size_bytes: number
+  model_type: "coreml" | "contextual"
+}
+
+export interface CoreMLUnloadModelParams {
+  id: string
+}
+export interface CoreMLModelInfoParams {
+  id: string
+}
+export interface CoreMLModelsResult {
+  models: CoreMLModelInfo[]
+}
+
+export interface CoreMLEmbedParams {
+  model_id: string
+  text: string
+}
+export interface CoreMLEmbedResult {
+  vector: number[]
+  dimensions: number
+}
+
+export interface CoreMLEmbedBatchParams {
+  model_id: string
+  texts: string[]
+}
+export interface CoreMLEmbedBatchResult {
+  vectors: number[][]
+  dimensions: number
+  count: number
+}
+
+export interface CoreMLLoadContextualParams {
+  id: string
+  language: string
+}
+export interface CoreMLContextualEmbedParams {
+  model_id: string
+  text: string
+}
+export interface CoreMLContextualEmbedBatchParams {
+  model_id: string
+  texts: string[]
+}
+export interface CoreMLOkResult {
+  ok: true
+}
+
+// ---------------------------------------------------------------------------
 // MethodMap
 // ---------------------------------------------------------------------------
 
@@ -256,6 +326,42 @@ export interface MethodMap {
   "icloud.stop_monitoring": {
     params: Record<string, never>
     result: ICloudOkResult
+  }
+  "coreml.load_model": {
+    params: CoreMLLoadModelParams
+    result: CoreMLModelInfo
+  }
+  "coreml.unload_model": {
+    params: CoreMLUnloadModelParams
+    result: CoreMLOkResult
+  }
+  "coreml.model_info": {
+    params: CoreMLModelInfoParams
+    result: CoreMLModelInfo
+  }
+  "coreml.models": {
+    params: Record<string, never>
+    result: CoreMLModelsResult
+  }
+  "coreml.embed": {
+    params: CoreMLEmbedParams
+    result: CoreMLEmbedResult
+  }
+  "coreml.embed_batch": {
+    params: CoreMLEmbedBatchParams
+    result: CoreMLEmbedBatchResult
+  }
+  "coreml.load_contextual": {
+    params: CoreMLLoadContextualParams
+    result: CoreMLModelInfo
+  }
+  "coreml.contextual_embed": {
+    params: CoreMLContextualEmbedParams
+    result: CoreMLEmbedResult
+  }
+  "coreml.embed_contextual_batch": {
+    params: CoreMLContextualEmbedBatchParams
+    result: CoreMLEmbedBatchResult
   }
 }
 
