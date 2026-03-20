@@ -14,6 +14,7 @@ import { Vision } from "./namespaces/vision.js"
 import { Auth } from "./namespaces/auth.js"
 import { System } from "./namespaces/system.js"
 import { ICloud } from "./namespaces/icloud.js"
+import { CoreML } from "./namespaces/coreml.js"
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -85,6 +86,7 @@ export class DarwinKit implements DarwinKitClient {
   readonly auth: Auth
   readonly system: System
   readonly icloud: ICloud
+  readonly coreml: CoreML
 
   private transport = new Transport()
   private pending = new Map<string, PendingRequest>()
@@ -126,6 +128,7 @@ export class DarwinKit implements DarwinKitClient {
     this.auth = new Auth(this)
     this.system = new System(this)
     this.icloud = new ICloud(this)
+    this.coreml = new CoreML(this)
   }
 
   get connected(): boolean {

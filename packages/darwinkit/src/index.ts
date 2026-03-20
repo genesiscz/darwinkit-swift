@@ -11,6 +11,7 @@ export { Vision } from "./namespaces/vision.js"
 export { Auth } from "./namespaces/auth.js"
 export { System } from "./namespaces/system.js"
 export { ICloud } from "./namespaces/icloud.js"
+export { CoreML } from "./namespaces/coreml.js"
 
 // All types
 export type {
@@ -64,6 +65,21 @@ export type {
   ICloudListDirResult,
   ICloudEnsureDirParams,
   ICloudOkResult,
+  // CoreML
+  CoreMLComputeUnits,
+  CoreMLLoadModelParams,
+  CoreMLModelInfo,
+  CoreMLUnloadModelParams,
+  CoreMLModelInfoParams,
+  CoreMLModelsResult,
+  CoreMLEmbedParams,
+  CoreMLEmbedResult,
+  CoreMLEmbedBatchParams,
+  CoreMLEmbedBatchResult,
+  CoreMLLoadContextualParams,
+  CoreMLContextualEmbedParams,
+  CoreMLContextualEmbedBatchParams,
+  CoreMLOkResult,
   // Notifications
   ReadyNotification,
   FilesChangedNotification,
