@@ -1059,6 +1059,14 @@ cd packages/darwinkit-swift
 swift build -c release --arch arm64 --arch x86_64
 ```
 
+## Roadmap
+
+- **v0.1.0** — NLP (embeddings, sentiment, tagging, language detection) + Vision (OCR) + Auth (biometrics) + iCloud (file ops) + TypeScript SDK
+- **v0.2.0** — Type improvements, npm binary bundling, release tooling
+- **v0.3.0** (current) — CoreML namespace: GPU/Neural Engine text embedding, NLContextualEmbedding, custom model loading via swift-embeddings
+- **v0.4.0** — `speech.*` via SpeechAnalyzer (macOS 26+), `translate.*` via Translation framework, `vision.*` extensions (image classification, face detection, barcode reading, image similarity)
+- **v0.5.0** — `llm.*` via Apple Foundation Models (on-device ~3B LLM, structured output, tool calling, streaming), `sound.*` via SoundAnalysis (300+ audio categories), `contacts.*` / `calendar.*` / `reminders.*` read-only access via Contacts + EventKit
+
 ## License
 
 MIT
