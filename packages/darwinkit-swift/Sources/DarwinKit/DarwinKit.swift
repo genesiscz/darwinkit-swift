@@ -62,6 +62,9 @@ func buildServerWithRouter() -> JsonRpcServer {
     router.register(CoreMLHandler(provider: AppleCoreMLProvider()))
     router.register(CloudHandler(notificationSink: server))
     router.register(AuthHandler())
+    if #available(macOS 15.0, *) {
+        router.register(TranslationHandler(provider: AppleTranslationProvider()))
+    }
 
     return server
 }
@@ -75,5 +78,8 @@ func buildRouter() -> MethodRouter {
     router.register(CoreMLHandler(provider: AppleCoreMLProvider()))
     router.register(CloudHandler())
     router.register(AuthHandler())
+    if #available(macOS 15.0, *) {
+        router.register(TranslationHandler(provider: AppleTranslationProvider()))
+    }
     return router
 }
