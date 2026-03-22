@@ -12,6 +12,7 @@ export { Auth } from "./namespaces/auth.js"
 export { System } from "./namespaces/system.js"
 export { ICloud } from "./namespaces/icloud.js"
 export { CoreML } from "./namespaces/coreml.js"
+export { Translate } from "./namespaces/translate.js"
 
 // All types
 export type {
@@ -80,6 +81,18 @@ export type {
   CoreMLContextualEmbedParams,
   CoreMLContextualEmbedBatchParams,
   CoreMLOkResult,
+  // Translation
+  TranslateTextParams,
+  TranslateTextResult,
+  TranslateBatchParams,
+  TranslateBatchResult,
+  TranslateLanguagesResult,
+  TranslateLanguageInfo,
+  TranslateLanguageStatusParams,
+  TranslateLanguageStatus,
+  TranslateLanguageStatusResult,
+  TranslatePrepareParams,
+  TranslatePrepareResult,
   // Notifications
   ReadyNotification,
   FilesChangedNotification,
