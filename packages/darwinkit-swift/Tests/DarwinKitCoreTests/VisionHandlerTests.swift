@@ -280,10 +280,15 @@ struct VisionHandlerTests {
 
     // MARK: - Method registration
 
-    @Test("handler registers vision.ocr method")
+    @Test("handler registers all 7 vision methods")
     func methodRegistration() {
         let handler = VisionHandler(provider: MockVisionProvider())
-        #expect(handler.methods == ["vision.ocr"])
+        let expected: Set<String> = [
+            "vision.ocr", "vision.classify", "vision.feature_print",
+            "vision.similarity", "vision.detect_faces", "vision.detect_barcodes",
+            "vision.saliency"
+        ]
+        #expect(Set(handler.methods) == expected)
     }
 
     @Test("handler reports available capability")
@@ -352,5 +357,299 @@ struct VisionHandlerTests {
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
         }
+    }
+
+    // MARK: - vision.feature_print
+
+    @Test("feature_print returns vector and dimensions")
+    func featurePrintSuccess() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.feature_print", params: [
+            "path": "/tmp/image.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+
+        let vector = result["vector"] as! [Float]
+        #expect(vector.count == 5)
+        #expect(vector[0] == 0.1)
+        #expect(result["dimensions"] as? Int == 5)
+    }
+
+    @Test("feature_print throws on missing path")
+    func featurePrintMissingPath() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.feature_print", params: [:])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("feature_print throws on file not found")
+    func featurePrintFileNotFound() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.feature_print", params: [
+            "path": "/tmp/nonexistent.jpg"
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    // MARK: - vision.similarity
+
+    @Test("similarity returns distance score")
+    func similaritySuccess() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.similarity", params: [
+            "path1": "/tmp/image1.jpg",
+            "path2": "/tmp/image2.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["distance"] as? Float == 12.5)
+    }
+
+    @Test("similarity throws on missing path1")
+    func similarityMissingPath1() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.similarity", params: [
+            "path2": "/tmp/image2.jpg"
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("similarity throws on missing path2")
+    func similarityMissingPath2() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.similarity", params: [
+            "path1": "/tmp/image1.jpg"
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("similarity throws on file not found")
+    func similarityFileNotFound() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.similarity", params: [
+            "path1": "/tmp/nonexistent.jpg",
+            "path2": "/tmp/image2.jpg"
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    // MARK: - vision.detect_faces
+
+    @Test("detect_faces returns face bounding boxes")
+    func detectFacesSuccess() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_faces", params: [
+            "path": "/tmp/photo.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let faces = result["faces"] as! [[String: Any]]
+
+        #expect(faces.count == 1)
+        #expect(faces[0]["confidence"] as? Float == 0.99)
+
+        let bounds = faces[0]["bounds"] as! [String: Any]
+        #expect(bounds["x"] as? CGFloat == 0.2)
+        #expect(bounds["y"] as? CGFloat == 0.3)
+        #expect(bounds["width"] as? CGFloat == 0.3)
+        #expect(bounds["height"] as? CGFloat == 0.4)
+    }
+
+    @Test("detect_faces without landmarks has no landmarks key")
+    func detectFacesNoLandmarks() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_faces", params: [
+            "path": "/tmp/photo.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let faces = result["faces"] as! [[String: Any]]
+
+        #expect(faces[0]["landmarks"] == nil)
+    }
+
+    @Test("detect_faces with landmarks returns landmark data")
+    func detectFacesWithLandmarks() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_faces", params: [
+            "path": "/tmp/photo.jpg",
+            "landmarks": true
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let faces = result["faces"] as! [[String: Any]]
+        let landmarks = faces[0]["landmarks"] as! [String: Any]
+
+        #expect(landmarks["left_eye"] != nil)
+        #expect(landmarks["right_eye"] != nil)
+        #expect(landmarks["nose"] != nil)
+        #expect(landmarks["mouth"] != nil)
+        #expect(landmarks["face_contour"] != nil)
+    }
+
+    @Test("detect_faces throws on missing path")
+    func detectFacesMissingPath() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_faces", params: [:])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("detect_faces handles no faces found")
+    func detectFacesEmpty() throws {
+        var mock = MockVisionProvider()
+        mock.detectFacesResult = DetectFacesResult(faces: [])
+        let handler = VisionHandler(provider: mock)
+        let request = makeRequest(method: "vision.detect_faces", params: [
+            "path": "/tmp/empty.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let faces = result["faces"] as! [[String: Any]]
+
+        #expect(faces.isEmpty)
+    }
+
+    // MARK: - vision.detect_barcodes
+
+    @Test("detect_barcodes returns barcode payload and symbology")
+    func detectBarcodesSuccess() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_barcodes", params: [
+            "path": "/tmp/qr.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let barcodes = result["barcodes"] as! [[String: Any]]
+
+        #expect(barcodes.count == 1)
+        #expect(barcodes[0]["payload"] as? String == "https://example.com")
+        #expect(barcodes[0]["symbology"] as? String == "VNBarcodeSymbologyQR")
+    }
+
+    @Test("detect_barcodes returns bounds")
+    func detectBarcodesBounds() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_barcodes", params: [
+            "path": "/tmp/qr.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let barcodes = result["barcodes"] as! [[String: Any]]
+        let bounds = barcodes[0]["bounds"] as! [String: Any]
+
+        #expect(bounds["x"] as? CGFloat == 0.1)
+        #expect(bounds["width"] as? CGFloat == 0.3)
+    }
+
+    @Test("detect_barcodes throws on missing path")
+    func detectBarcodesMissingPath() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_barcodes", params: [:])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("detect_barcodes handles no barcodes found")
+    func detectBarcodesEmpty() throws {
+        var mock = MockVisionProvider()
+        mock.detectBarcodesResult = DetectBarcodesResult(barcodes: [])
+        let handler = VisionHandler(provider: mock)
+        let request = makeRequest(method: "vision.detect_barcodes", params: [
+            "path": "/tmp/photo.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let barcodes = result["barcodes"] as! [[String: Any]]
+
+        #expect(barcodes.isEmpty)
+    }
+
+    @Test("detect_barcodes accepts symbologies filter")
+    func detectBarcodesSymbologies() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_barcodes", params: [
+            "path": "/tmp/qr.jpg",
+            "symbologies": ["VNBarcodeSymbologyQR", "VNBarcodeSymbologyEAN13"]
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        #expect(result["barcodes"] != nil)
+    }
+
+    // MARK: - vision.saliency
+
+    @Test("saliency returns attention regions by default")
+    func saliencyAttention() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.saliency", params: [
+            "path": "/tmp/image.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["type"] as? String == "attention")
+        let regions = result["regions"] as! [[String: Any]]
+        #expect(regions.count == 1)
+        #expect(regions[0]["confidence"] as? Float == 0.85)
+    }
+
+    @Test("saliency accepts objectness type")
+    func saliencyObjectness() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.saliency", params: [
+            "path": "/tmp/image.jpg",
+            "type": "objectness"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["type"] as? String == "objectness")
+    }
+
+    @Test("saliency throws on invalid type")
+    func saliencyInvalidType() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.saliency", params: [
+            "path": "/tmp/image.jpg",
+            "type": "thermal"
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("saliency throws on missing path")
+    func saliencyMissingPath() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.saliency", params: [:])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("saliency region has bounds")
+    func saliencyRegionBounds() throws {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.saliency", params: [
+            "path": "/tmp/image.jpg"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let regions = result["regions"] as! [[String: Any]]
+        let bounds = regions[0]["bounds"] as! [String: Any]
+
+        #expect(bounds["x"] as? CGFloat == 0.2)
+        #expect(bounds["width"] as? CGFloat == 0.6)
     }
 }
