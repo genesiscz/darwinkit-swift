@@ -1,5 +1,8 @@
 # Speech Recognition (`speech.*`) Implementation Plan
 
+> **GitHub Issue:** https://github.com/genesiscz/darwinkit-swift/issues/3
+
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add speech-to-text transcription via Apple's SpeechAnalyzer framework (macOS 26+) as a new `speech.*` JSON-RPC namespace.
