@@ -1,5 +1,8 @@
 # SoundAnalysis (`sound.*`) Implementation Plan
 
+> **GitHub Issue:** https://github.com/genesiscz/darwinkit-swift/issues/7
+
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Expose Apple's SoundAnalysis framework via the `sound.*` JSON-RPC namespace, enabling classification of sounds from audio files using Apple's built-in classifier (300+ categories).
