@@ -85,6 +85,7 @@ private final class ResultsObserver: NSObject, SNResultsObserving {
     private(set) var error: Error?
     private let topN: Int
     private let targetTimeRange: CMTimeRange?
+    private var highestConfidence: Double = 0.0
 
     init(topN: Int, targetTimeRange: CMTimeRange? = nil) {
         self.topN = topN
@@ -110,9 +111,10 @@ private final class ResultsObserver: NSObject, SNResultsObserving {
             SoundClassification(identifier: item.identifier, confidence: Double(item.confidence))
         }
 
-        // Keep the latest (most confident) result -- SoundAnalysis sends multiple windows
-        if !items.isEmpty {
+        // Keep the classification window with the highest confidence
+        if let topResult = items.first, topResult.confidence > highestConfidence {
             self.classifications = Array(items)
+            self.highestConfidence = topResult.confidence
         }
     }
 
