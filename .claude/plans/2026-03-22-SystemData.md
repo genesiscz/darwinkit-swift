@@ -1,5 +1,8 @@
 # System Data Access Implementation Plan
 
+> **GitHub Issue:** https://github.com/genesiscz/darwinkit-swift/issues/8
+
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add read-only access to Contacts, Calendar, and Reminders via `contacts.*`, `calendar.*`, and `reminders.*` JSON-RPC namespaces.
