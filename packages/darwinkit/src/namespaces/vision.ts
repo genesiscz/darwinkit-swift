@@ -5,6 +5,18 @@ import type {
   PreparedCall,
   OCRParams,
   OCRResult,
+  ClassifyParams,
+  ClassifyResult,
+  FeaturePrintParams,
+  FeaturePrintResult,
+  SimilarityParams,
+  SimilarityResult,
+  DetectFacesParams,
+  DetectFacesResult,
+  DetectBarcodesParams,
+  DetectBarcodesResult,
+  SaliencyParams,
+  SaliencyResultData,
 } from "../types.js"
 
 // helper to create callable+preparable methods
@@ -27,7 +39,82 @@ export class Vision {
     prepare(params: OCRParams): PreparedCall<"vision.ocr">
   }
 
+  readonly classify: {
+    (
+      params: ClassifyParams,
+      options?: { timeout?: number },
+    ): Promise<ClassifyResult>
+    prepare(params: ClassifyParams): PreparedCall<"vision.classify">
+  }
+
+  readonly featurePrint: {
+    (
+      params: FeaturePrintParams,
+      options?: { timeout?: number },
+    ): Promise<FeaturePrintResult>
+    prepare(
+      params: FeaturePrintParams,
+    ): PreparedCall<"vision.feature_print">
+  }
+
+  readonly similarity: {
+    (
+      params: SimilarityParams,
+      options?: { timeout?: number },
+    ): Promise<SimilarityResult>
+    prepare(params: SimilarityParams): PreparedCall<"vision.similarity">
+  }
+
+  readonly detectFaces: {
+    (
+      params: DetectFacesParams,
+      options?: { timeout?: number },
+    ): Promise<DetectFacesResult>
+    prepare(
+      params: DetectFacesParams,
+    ): PreparedCall<"vision.detect_faces">
+  }
+
+  readonly detectBarcodes: {
+    (
+      params: DetectBarcodesParams,
+      options?: { timeout?: number },
+    ): Promise<DetectBarcodesResult>
+    prepare(
+      params: DetectBarcodesParams,
+    ): PreparedCall<"vision.detect_barcodes">
+  }
+
+  readonly saliency: {
+    (
+      params: SaliencyParams,
+      options?: { timeout?: number },
+    ): Promise<SaliencyResultData>
+    prepare(params: SaliencyParams): PreparedCall<"vision.saliency">
+  }
+
   constructor(client: DarwinKitClient) {
     this.ocr = method(client, "vision.ocr") as Vision["ocr"]
+    this.classify = method(client, "vision.classify") as Vision["classify"]
+    this.featurePrint = method(
+      client,
+      "vision.feature_print",
+    ) as Vision["featurePrint"]
+    this.similarity = method(
+      client,
+      "vision.similarity",
+    ) as Vision["similarity"]
+    this.detectFaces = method(
+      client,
+      "vision.detect_faces",
+    ) as Vision["detectFaces"]
+    this.detectBarcodes = method(
+      client,
+      "vision.detect_barcodes",
+    ) as Vision["detectBarcodes"]
+    this.saliency = method(
+      client,
+      "vision.saliency",
+    ) as Vision["saliency"]
   }
 }
