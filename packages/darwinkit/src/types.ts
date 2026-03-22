@@ -103,6 +103,96 @@ export interface OCRResult {
   blocks: OCRBlock[]
 }
 
+// Classification
+export interface ClassifyParams {
+  path: string
+  max_results?: number // default: 10
+}
+export interface ClassificationItem {
+  identifier: string
+  confidence: number
+}
+export interface ClassifyResult {
+  classifications: ClassificationItem[]
+}
+
+// Feature Print
+export interface FeaturePrintParams {
+  path: string
+}
+export interface FeaturePrintResult {
+  vector: number[]
+  dimensions: number
+}
+
+// Similarity
+export interface SimilarityParams {
+  path1: string
+  path2: string
+}
+export interface SimilarityResult {
+  distance: number
+}
+
+// Face Detection
+export interface FaceBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+export interface FaceLandmarkPoints {
+  points: number[][] // Array of [x, y] pairs
+}
+export interface FaceLandmarks {
+  left_eye?: FaceLandmarkPoints
+  right_eye?: FaceLandmarkPoints
+  nose?: FaceLandmarkPoints
+  mouth?: FaceLandmarkPoints
+  face_contour?: FaceLandmarkPoints
+}
+export interface FaceObservation {
+  bounds: FaceBounds
+  confidence: number
+  landmarks?: FaceLandmarks
+}
+export interface DetectFacesParams {
+  path: string
+  landmarks?: boolean // default: false
+}
+export interface DetectFacesResult {
+  faces: FaceObservation[]
+}
+
+// Barcode Detection
+export interface BarcodeObservation {
+  payload: string | null
+  symbology: string
+  bounds: FaceBounds
+}
+export interface DetectBarcodesParams {
+  path: string
+  symbologies?: string[]
+}
+export interface DetectBarcodesResult {
+  barcodes: BarcodeObservation[]
+}
+
+// Saliency
+export type SaliencyType = "attention" | "objectness"
+export interface SaliencyRegion {
+  bounds: FaceBounds
+  confidence: number
+}
+export interface SaliencyParams {
+  path: string
+  type?: SaliencyType // default: "attention"
+}
+export interface SaliencyResultData {
+  type: SaliencyType
+  regions: SaliencyRegion[]
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -286,6 +376,21 @@ export interface MethodMap {
   "nlp.sentiment": { params: SentimentParams; result: SentimentResult }
   "nlp.language": { params: LanguageParams; result: LanguageResult }
   "vision.ocr": { params: OCRParams; result: OCRResult }
+  "vision.classify": { params: ClassifyParams; result: ClassifyResult }
+  "vision.feature_print": {
+    params: FeaturePrintParams
+    result: FeaturePrintResult
+  }
+  "vision.similarity": { params: SimilarityParams; result: SimilarityResult }
+  "vision.detect_faces": {
+    params: DetectFacesParams
+    result: DetectFacesResult
+  }
+  "vision.detect_barcodes": {
+    params: DetectBarcodesParams
+    result: DetectBarcodesResult
+  }
+  "vision.saliency": { params: SaliencyParams; result: SaliencyResultData }
   "auth.available": {
     params: Record<string, never>
     result: AuthAvailableResult
