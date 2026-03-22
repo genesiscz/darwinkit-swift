@@ -130,13 +130,11 @@ public struct AppleVisionProvider: VisionProvider {
         let handler = VNImageRequestHandler(url: url, options: [:])
         var blocks: [OCRBlock] = []
         var fullText: [String] = []
+        var visionError: Error?
 
         let request = VNRecognizeTextRequest { request, error in
             if let error = error {
-                let errMsg = "[darwinkit] OCR error: \(error.localizedDescription)\n"
-                errMsg.utf8.withContiguousStorageIfAvailable { buf in
-                    _ = Darwin.write(STDERR_FILENO, buf.baseAddress, buf.count)
-                }
+                visionError = error
                 return
             }
 
@@ -160,6 +158,9 @@ public struct AppleVisionProvider: VisionProvider {
         }
 
         try handler.perform([request])
+        if let visionError = visionError {
+            throw JsonRpcError.internalError("OCR failed: \(visionError.localizedDescription)")
+        }
 
         return OCRResult(
             text: fullText.joined(separator: "\n"),
@@ -176,13 +177,11 @@ public struct AppleVisionProvider: VisionProvider {
 
         let handler = VNImageRequestHandler(url: url, options: [:])
         var items: [ClassificationItem] = []
+        var visionError: Error?
 
         let request = VNClassifyImageRequest { request, error in
             if let error = error {
-                let errMsg = "[darwinkit] classify error: \(error.localizedDescription)\n"
-                errMsg.utf8.withContiguousStorageIfAvailable { buf in
-                    _ = Darwin.write(STDERR_FILENO, buf.baseAddress, buf.count)
-                }
+                visionError = error
                 return
             }
 
@@ -201,6 +200,9 @@ public struct AppleVisionProvider: VisionProvider {
         }
 
         try handler.perform([request])
+        if let visionError = visionError {
+            throw JsonRpcError.internalError("Vision classification failed: \(visionError.localizedDescription)")
+        }
 
         return ClassifyResult(classifications: items)
     }
@@ -223,16 +225,7 @@ public struct AppleVisionProvider: VisionProvider {
 
         // Extract the raw float data from the feature print
         let elementCount = observation.elementCount
-        var vector = [Float](repeating: 0, count: elementCount)
-
-        // VNFeaturePrintObservation stores data as Float
-        let data = observation.data
-        data.withUnsafeBytes { rawBuffer in
-            let floatBuffer = rawBuffer.bindMemory(to: Float.self)
-            for i in 0..<elementCount {
-                vector[i] = floatBuffer[i]
-            }
-        }
+        let vector = observation.data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
 
         return FeaturePrintResult(vector: vector, dimensions: elementCount)
     }
@@ -277,67 +270,46 @@ public struct AppleVisionProvider: VisionProvider {
 
         let handler = VNImageRequestHandler(url: url, options: [:])
         var faces: [FaceObservation] = []
+        var visionError: Error?
 
-        if withLandmarks {
-            let request = VNDetectFaceLandmarksRequest { request, error in
-                if let error = error {
-                    let errMsg = "[darwinkit] face landmarks error: \(error.localizedDescription)\n"
-                    errMsg.utf8.withContiguousStorageIfAvailable { buf in
-                        _ = Darwin.write(STDERR_FILENO, buf.baseAddress, buf.count)
-                    }
-                    return
-                }
-
-                guard let observations = request.results as? [VNFaceObservation] else { return }
-
-                for obs in observations {
-                    let box = obs.boundingBox
-                    let bounds = FaceBounds(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height)
-
-                    var landmarks: FaceLandmarks? = nil
-                    if let lm = obs.landmarks {
-                        landmarks = FaceLandmarks(
-                            leftEye: Self.extractPoints(lm.leftEye),
-                            rightEye: Self.extractPoints(lm.rightEye),
-                            nose: Self.extractPoints(lm.nose),
-                            mouth: Self.extractPoints(lm.innerLips),
-                            faceContour: Self.extractPoints(lm.faceContour)
-                        )
-                    }
-
-                    faces.append(FaceObservation(
-                        bounds: bounds,
-                        confidence: obs.confidence,
-                        landmarks: landmarks
-                    ))
-                }
+        let completionHandler: VNRequestCompletionHandler = { request, error in
+            if let error = error {
+                visionError = error
+                return
             }
 
-            try handler.perform([request])
-        } else {
-            let request = VNDetectFaceRectanglesRequest { request, error in
-                if let error = error {
-                    let errMsg = "[darwinkit] face detection error: \(error.localizedDescription)\n"
-                    errMsg.utf8.withContiguousStorageIfAvailable { buf in
-                        _ = Darwin.write(STDERR_FILENO, buf.baseAddress, buf.count)
-                    }
-                    return
+            guard let observations = request.results as? [VNFaceObservation] else { return }
+
+            for obs in observations {
+                let box = obs.boundingBox
+                let bounds = FaceBounds(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height)
+
+                var landmarks: FaceLandmarks? = nil
+                if withLandmarks, let lm = obs.landmarks {
+                    landmarks = FaceLandmarks(
+                        leftEye: Self.extractPoints(lm.leftEye),
+                        rightEye: Self.extractPoints(lm.rightEye),
+                        nose: Self.extractPoints(lm.nose),
+                        mouth: Self.extractPoints(lm.innerLips),
+                        faceContour: Self.extractPoints(lm.faceContour)
+                    )
                 }
 
-                guard let observations = request.results as? [VNFaceObservation] else { return }
-
-                for obs in observations {
-                    let box = obs.boundingBox
-                    let bounds = FaceBounds(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height)
-                    faces.append(FaceObservation(
-                        bounds: bounds,
-                        confidence: obs.confidence,
-                        landmarks: nil
-                    ))
-                }
+                faces.append(FaceObservation(
+                    bounds: bounds,
+                    confidence: obs.confidence,
+                    landmarks: landmarks
+                ))
             }
+        }
 
-            try handler.perform([request])
+        let request: VNImageBasedRequest = withLandmarks
+            ? VNDetectFaceLandmarksRequest(completionHandler: completionHandler)
+            : VNDetectFaceRectanglesRequest(completionHandler: completionHandler)
+
+        try handler.perform([request])
+        if let visionError = visionError {
+            throw JsonRpcError.internalError("Face detection failed: \(visionError.localizedDescription)")
         }
 
         return DetectFacesResult(faces: faces)
@@ -358,13 +330,11 @@ public struct AppleVisionProvider: VisionProvider {
 
         let handler = VNImageRequestHandler(url: url, options: [:])
         var barcodes: [BarcodeObservation] = []
+        var visionError: Error?
 
         let request = VNDetectBarcodesRequest { request, error in
             if let error = error {
-                let errMsg = "[darwinkit] barcode detection error: \(error.localizedDescription)\n"
-                errMsg.utf8.withContiguousStorageIfAvailable { buf in
-                    _ = Darwin.write(STDERR_FILENO, buf.baseAddress, buf.count)
-                }
+                visionError = error
                 return
             }
 
@@ -386,6 +356,9 @@ public struct AppleVisionProvider: VisionProvider {
         }
 
         try handler.perform([request])
+        if let visionError = visionError {
+            throw JsonRpcError.internalError("Barcode detection failed: \(visionError.localizedDescription)")
+        }
 
         return DetectBarcodesResult(barcodes: barcodes)
     }
@@ -399,58 +372,40 @@ public struct AppleVisionProvider: VisionProvider {
 
         let handler = VNImageRequestHandler(url: url, options: [:])
         var regions: [SaliencyRegion] = []
+        var visionError: Error?
 
-        let request: VNImageBasedRequest
-        switch type {
-        case .attention:
-            request = VNGenerateAttentionBasedSaliencyImageRequest { request, error in
-                if let error = error {
-                    let errMsg = "[darwinkit] saliency error: \(error.localizedDescription)\n"
-                    errMsg.utf8.withContiguousStorageIfAvailable { buf in
-                        _ = Darwin.write(STDERR_FILENO, buf.baseAddress, buf.count)
-                    }
-                    return
-                }
-
-                guard let observations = request.results as? [VNSaliencyImageObservation] else { return }
-
-                for obs in observations {
-                    guard let salientObjects = obs.salientObjects else { continue }
-                    for obj in salientObjects {
-                        let box = obj.boundingBox
-                        regions.append(SaliencyRegion(
-                            bounds: FaceBounds(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height),
-                            confidence: obj.confidence
-                        ))
-                    }
-                }
+        let completionHandler: VNRequestCompletionHandler = { request, error in
+            if let error = error {
+                visionError = error
+                return
             }
-        case .objectness:
-            request = VNGenerateObjectnessBasedSaliencyImageRequest { request, error in
-                if let error = error {
-                    let errMsg = "[darwinkit] saliency error: \(error.localizedDescription)\n"
-                    errMsg.utf8.withContiguousStorageIfAvailable { buf in
-                        _ = Darwin.write(STDERR_FILENO, buf.baseAddress, buf.count)
-                    }
-                    return
-                }
 
-                guard let observations = request.results as? [VNSaliencyImageObservation] else { return }
+            guard let observations = request.results as? [VNSaliencyImageObservation] else { return }
 
-                for obs in observations {
-                    guard let salientObjects = obs.salientObjects else { continue }
-                    for obj in salientObjects {
-                        let box = obj.boundingBox
-                        regions.append(SaliencyRegion(
-                            bounds: FaceBounds(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height),
-                            confidence: obj.confidence
-                        ))
-                    }
+            for obs in observations {
+                guard let salientObjects = obs.salientObjects else { continue }
+                for obj in salientObjects {
+                    let box = obj.boundingBox
+                    regions.append(SaliencyRegion(
+                        bounds: FaceBounds(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height),
+                        confidence: obj.confidence
+                    ))
                 }
             }
         }
 
+        let request: VNImageBasedRequest
+        switch type {
+        case .attention:
+            request = VNGenerateAttentionBasedSaliencyImageRequest(completionHandler: completionHandler)
+        case .objectness:
+            request = VNGenerateObjectnessBasedSaliencyImageRequest(completionHandler: completionHandler)
+        }
+
         try handler.perform([request])
+        if let visionError = visionError {
+            throw JsonRpcError.internalError("Saliency detection failed: \(visionError.localizedDescription)")
+        }
 
         return SaliencyResult(type: type, regions: regions)
     }
