@@ -498,6 +498,65 @@ export interface SoundCategoriesResult {
 
 export interface SoundAvailableResult {
   available: boolean
+// LLM (Foundation Models)
+// ---------------------------------------------------------------------------
+
+export interface LLMGenerateParams {
+  prompt: string
+  system_instructions?: string
+  temperature?: number
+  max_tokens?: number
+}
+export interface LLMGenerateResult {
+  text: string
+}
+
+export interface LLMGenerateStructuredParams {
+  prompt: string
+  schema: Record<string, unknown>
+  system_instructions?: string
+  temperature?: number
+  max_tokens?: number
+}
+export interface LLMGenerateStructuredResult {
+  json: Record<string, unknown>
+}
+
+export interface LLMStreamParams {
+  prompt: string
+  system_instructions?: string
+  temperature?: number
+  max_tokens?: number
+}
+
+export interface LLMSessionCreateParams {
+  session_id: string
+  instructions?: string
+}
+
+export interface LLMSessionRespondParams {
+  session_id: string
+  prompt: string
+  temperature?: number
+  max_tokens?: number
+}
+
+export interface LLMSessionCloseParams {
+  session_id: string
+}
+
+export interface LLMAvailableResult {
+  available: boolean
+  reason?: string
+}
+
+export interface LLMOkResult {
+  ok: true
+}
+
+export interface LLMChunkNotification {
+  request_id: string
+  chunk: string
 }
 
 // ---------------------------------------------------------------------------
@@ -661,6 +720,33 @@ export interface MethodMap {
   "sound.available": {
     params: Record<string, never>
     result: SoundAvailableResult
+  "llm.generate": {
+    params: LLMGenerateParams
+    result: LLMGenerateResult
+  }
+  "llm.generate_structured": {
+    params: LLMGenerateStructuredParams
+    result: LLMGenerateStructuredResult
+  }
+  "llm.stream": {
+    params: LLMStreamParams
+    result: LLMGenerateResult
+  }
+  "llm.session_create": {
+    params: LLMSessionCreateParams
+    result: LLMOkResult
+  }
+  "llm.session_respond": {
+    params: LLMSessionRespondParams
+    result: LLMGenerateResult
+  }
+  "llm.session_close": {
+    params: LLMSessionCloseParams
+    result: LLMOkResult
+  }
+  "llm.available": {
+    params: Record<string, never>
+    result: LLMAvailableResult
   }
 }
 
