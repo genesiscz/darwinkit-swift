@@ -1,0 +1,252 @@
+import EventKit
+import Foundation
+
+// MARK: - Data Types
+
+public struct CalendarInfo {
+    public let identifier: String
+    public let title: String
+    public let type: String  // "local" | "calDAV" | "exchange" | "subscription" | "birthday"
+    public let color: String  // hex color string e.g. "#FF0000"
+    public let isImmutable: Bool
+    public let allowsContentModifications: Bool
+
+    public init(
+        identifier: String, title: String, type: String,
+        color: String, isImmutable: Bool, allowsContentModifications: Bool
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.type = type
+        self.color = color
+        self.isImmutable = isImmutable
+        self.allowsContentModifications = allowsContentModifications
+    }
+
+    public func toDict() -> [String: Any] {
+        [
+            "identifier": identifier,
+            "title": title,
+            "type": type,
+            "color": color,
+            "is_immutable": isImmutable,
+            "allows_content_modifications": allowsContentModifications,
+        ]
+    }
+}
+
+public struct CalendarEventInfo {
+    public let identifier: String
+    public let title: String
+    public let startDate: String  // ISO 8601
+    public let endDate: String    // ISO 8601
+    public let isAllDay: Bool
+    public let location: String?
+    public let notes: String?
+    public let calendarIdentifier: String
+    public let calendarTitle: String
+    public let url: String?
+
+    public init(
+        identifier: String, title: String, startDate: String, endDate: String,
+        isAllDay: Bool, location: String?, notes: String?,
+        calendarIdentifier: String, calendarTitle: String, url: String?
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAllDay = isAllDay
+        self.location = location
+        self.notes = notes
+        self.calendarIdentifier = calendarIdentifier
+        self.calendarTitle = calendarTitle
+        self.url = url
+    }
+
+    public func toDict() -> [String: Any] {
+        var dict: [String: Any] = [
+            "identifier": identifier,
+            "title": title,
+            "start_date": startDate,
+            "end_date": endDate,
+            "is_all_day": isAllDay,
+            "calendar_identifier": calendarIdentifier,
+            "calendar_title": calendarTitle,
+        ]
+        if let location = location { dict["location"] = location }
+        if let notes = notes { dict["notes"] = notes }
+        if let url = url { dict["url"] = url }
+        return dict
+    }
+}
+
+public struct CalendarAuthorizationResult {
+    public let status: String  // "fullAccess" | "writeOnly" | "denied" | "restricted" | "notDetermined"
+    public let authorized: Bool
+
+    public init(status: String, authorized: Bool) {
+        self.status = status
+        self.authorized = authorized
+    }
+
+    public func toDict() -> [String: Any] {
+        ["status": status, "authorized": authorized]
+    }
+}
+
+// MARK: - Provider Protocol
+
+public protocol CalendarProvider {
+    /// Check/request calendar authorization. Returns current status.
+    func checkAuthorization() throws -> CalendarAuthorizationResult
+
+    /// List all calendars for events.
+    func listCalendars() throws -> [CalendarInfo]
+
+    /// Fetch events in a date range, optionally filtered by calendar identifiers.
+    func fetchEvents(startDate: String, endDate: String, calendarIdentifiers: [String]?) throws -> [CalendarEventInfo]
+
+    /// Get a single event by identifier.
+    func getEvent(identifier: String) throws -> CalendarEventInfo
+}
+
+// MARK: - Apple Implementation
+
+public final class AppleCalendarProvider: CalendarProvider {
+    private let store = EKEventStore()
+    private let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    public init() {}
+
+    public func checkAuthorization() throws -> CalendarAuthorizationResult {
+        let status = EKEventStore.authorizationStatus(for: .event)
+
+        switch status {
+        case .fullAccess:
+            return CalendarAuthorizationResult(status: "fullAccess", authorized: true)
+        case .writeOnly:
+            return CalendarAuthorizationResult(status: "writeOnly", authorized: false)
+        case .denied:
+            return CalendarAuthorizationResult(status: "denied", authorized: false)
+        case .restricted:
+            return CalendarAuthorizationResult(status: "restricted", authorized: false)
+        case .notDetermined:
+            let semaphore = DispatchSemaphore(value: 0)
+            var granted = false
+            if #available(macOS 14, *) {
+                store.requestFullAccessToEvents { success, _ in
+                    granted = success
+                    semaphore.signal()
+                }
+            } else {
+                store.requestAccess(to: .event) { success, _ in
+                    granted = success
+                    semaphore.signal()
+                }
+            }
+            semaphore.wait()
+            let newStatus = granted ? "fullAccess" : "denied"
+            return CalendarAuthorizationResult(status: newStatus, authorized: granted)
+        @unknown default:
+            return CalendarAuthorizationResult(status: "notDetermined", authorized: false)
+        }
+    }
+
+    public func listCalendars() throws -> [CalendarInfo] {
+        try ensureAuthorized()
+        return store.calendars(for: .event).map { mapCalendar($0) }
+    }
+
+    public func fetchEvents(startDate: String, endDate: String, calendarIdentifiers: [String]?) throws -> [CalendarEventInfo] {
+        try ensureAuthorized()
+
+        guard let start = isoFormatter.date(from: startDate) else {
+            throw JsonRpcError.invalidParams("Invalid start_date ISO 8601 format: \(startDate)")
+        }
+        guard let end = isoFormatter.date(from: endDate) else {
+            throw JsonRpcError.invalidParams("Invalid end_date ISO 8601 format: \(endDate)")
+        }
+
+        var calendars: [EKCalendar]? = nil
+        if let ids = calendarIdentifiers {
+            calendars = ids.compactMap { store.calendar(withIdentifier: $0) }
+            if calendars?.isEmpty == true {
+                calendars = nil  // fall back to all calendars
+            }
+        }
+
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
+        let events = store.events(matching: predicate)
+        return events.map { mapEvent($0) }
+    }
+
+    public func getEvent(identifier: String) throws -> CalendarEventInfo {
+        try ensureAuthorized()
+
+        guard let event = store.event(withIdentifier: identifier) else {
+            throw JsonRpcError.invalidParams("Event not found: \(identifier)")
+        }
+
+        return mapEvent(event)
+    }
+
+    // MARK: - Private
+
+    private func ensureAuthorized() throws {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        guard status == .fullAccess else {
+            throw JsonRpcError.permissionDenied(
+                "Calendar access not authorized. Call calendar.authorized first."
+            )
+        }
+    }
+
+    private func mapCalendar(_ cal: EKCalendar) -> CalendarInfo {
+        let typeName: String
+        switch cal.type {
+        case .local: typeName = "local"
+        case .calDAV: typeName = "calDAV"
+        case .exchange: typeName = "exchange"
+        case .subscription: typeName = "subscription"
+        case .birthday: typeName = "birthday"
+        @unknown default: typeName = "unknown"
+        }
+
+        let color = cal.cgColor.flatMap { cgColor -> String? in
+            guard let components = cgColor.components, cgColor.numberOfComponents >= 3 else { return nil }
+            let r = Int(components[0] * 255)
+            let g = Int(components[1] * 255)
+            let b = Int(components[2] * 255)
+            return String(format: "#%02X%02X%02X", r, g, b)
+        } ?? "#000000"
+
+        return CalendarInfo(
+            identifier: cal.calendarIdentifier,
+            title: cal.title,
+            type: typeName,
+            color: color,
+            isImmutable: cal.isImmutable,
+            allowsContentModifications: cal.allowsContentModifications
+        )
+    }
+
+    private func mapEvent(_ event: EKEvent) -> CalendarEventInfo {
+        CalendarEventInfo(
+            identifier: event.eventIdentifier,
+            title: event.title ?? "",
+            startDate: isoFormatter.string(from: event.startDate),
+            endDate: isoFormatter.string(from: event.endDate),
+            isAllDay: event.isAllDay,
+            location: event.location,
+            notes: event.notes,
+            calendarIdentifier: event.calendar.calendarIdentifier,
+            calendarTitle: event.calendar.title,
+            url: event.url?.absoluteString
+        )
+    }
+}
