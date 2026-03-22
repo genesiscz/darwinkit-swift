@@ -106,3 +106,154 @@ public protocol SpeechProvider {
     /// Check device capabilities for speech recognition.
     func capabilities() throws -> SpeechCapabilities
 }
+
+// MARK: - Apple Implementation
+
+#if canImport(Speech)
+import Speech
+
+/// Factory that returns AppleSpeechProvider if Speech framework is available.
+public func makeAppleSpeechProvider() -> SpeechProvider {
+    return AppleSpeechProvider()
+}
+
+public final class AppleSpeechProvider: SpeechProvider {
+
+    public init() {}
+
+    public func transcribe(path: String, language: String, includeTimestamps: Bool) throws -> TranscriptionResult {
+        let url = URL(fileURLWithPath: path)
+
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw JsonRpcError.invalidParams("File not found: \(path)")
+        }
+
+        let locale = Locale(identifier: language)
+
+        guard let recognizer = SFSpeechRecognizer(locale: locale) else {
+            throw JsonRpcError.frameworkUnavailable(
+                "Speech recognition not available for locale: \(language)"
+            )
+        }
+
+        guard recognizer.isAvailable else {
+            throw JsonRpcError.frameworkUnavailable(
+                "Speech recognizer is not currently available"
+            )
+        }
+
+        let request = SFSpeechURLRecognitionRequest(url: url)
+        request.shouldReportPartialResults = false
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var transcribeResult: SFSpeechRecognitionResult?
+        var transcribeError: Error?
+
+        recognizer.recognitionTask(with: request) { result, error in
+            if let error = error {
+                transcribeError = error
+                semaphore.signal()
+                return
+            }
+            if let result = result, result.isFinal {
+                transcribeResult = result
+                semaphore.signal()
+            }
+        }
+
+        semaphore.wait()
+
+        if let error = transcribeError {
+            throw JsonRpcError.internalError("Transcription failed: \(error.localizedDescription)")
+        }
+
+        guard let sfResult = transcribeResult else {
+            throw JsonRpcError.internalError("Transcription returned no result")
+        }
+
+        let bestTranscription = sfResult.bestTranscription
+        let fullText = bestTranscription.formattedString
+
+        var segments: [TranscriptionSegment] = []
+        if includeTimestamps {
+            for segment in bestTranscription.segments {
+                segments.append(TranscriptionSegment(
+                    text: segment.substring,
+                    startTime: segment.timestamp,
+                    endTime: segment.timestamp + segment.duration,
+                    isFinal: true
+                ))
+            }
+        }
+
+        let duration = bestTranscription.segments.last.map {
+            $0.timestamp + $0.duration
+        } ?? 0
+
+        return TranscriptionResult(
+            text: fullText,
+            segments: segments,
+            language: language,
+            duration: duration
+        )
+    }
+
+    public func supportedLanguages() throws -> [SpeechLanguageInfo] {
+        let supported = SFSpeechRecognizer.supportedLocales()
+        return supported.map { locale in
+            SpeechLanguageInfo(locale: locale.identifier, installed: true)
+        }
+    }
+
+    public func installedLanguages() throws -> [SpeechLanguageInfo] {
+        // On macOS, all supported locales are available (no separate download needed
+        // in the classic Speech framework)
+        let supported = SFSpeechRecognizer.supportedLocales()
+        return supported.map { locale in
+            SpeechLanguageInfo(locale: locale.identifier, installed: true)
+        }
+    }
+
+    public func installLanguage(locale: String) throws {
+        // SFSpeechRecognizer does not support downloading individual language models.
+        // All supported locales are already available on the system.
+        let supported = SFSpeechRecognizer.supportedLocales()
+        let loc = Locale(identifier: locale)
+        guard supported.contains(loc) else {
+            throw JsonRpcError.invalidParams("Unsupported locale: \(locale)")
+        }
+        // No-op: language is already installed
+    }
+
+    public func uninstallLanguage(locale: String) throws {
+        // SFSpeechRecognizer does not support uninstalling language models.
+        throw JsonRpcError.invalidParams(
+            "Language models cannot be uninstalled with the current Speech framework"
+        )
+    }
+
+    public func capabilities() throws -> SpeechCapabilities {
+        let status = SFSpeechRecognizer.authorizationStatus()
+        switch status {
+        case .authorized:
+            return SpeechCapabilities(available: true)
+        case .denied:
+            return SpeechCapabilities(available: false, reason: "Speech recognition permission denied")
+        case .restricted:
+            return SpeechCapabilities(available: false, reason: "Speech recognition is restricted on this device")
+        case .notDetermined:
+            return SpeechCapabilities(available: false, reason: "Speech recognition permission not yet requested")
+        @unknown default:
+            return SpeechCapabilities(available: false, reason: "Unknown authorization status")
+        }
+    }
+}
+
+#else
+
+/// Stub factory when Speech framework is not available.
+public func makeAppleSpeechProvider() throws -> SpeechProvider {
+    throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
+}
+
+#endif
