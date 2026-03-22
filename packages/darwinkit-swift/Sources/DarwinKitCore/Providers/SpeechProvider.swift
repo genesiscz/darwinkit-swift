@@ -251,9 +251,39 @@ public final class AppleSpeechProvider: SpeechProvider {
 
 #else
 
-/// Stub factory when Speech framework is not available.
-public func makeAppleSpeechProvider() throws -> SpeechProvider {
-    throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
+/// Stub provider when Speech framework is not available.
+/// All methods throw frameworkUnavailable.
+public final class StubSpeechProvider: SpeechProvider {
+    public init() {}
+
+    public func transcribe(path: String, language: String, includeTimestamps: Bool) throws -> TranscriptionResult {
+        throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
+    }
+
+    public func supportedLanguages() throws -> [SpeechLanguageInfo] {
+        throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
+    }
+
+    public func installedLanguages() throws -> [SpeechLanguageInfo] {
+        throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
+    }
+
+    public func installLanguage(locale: String) throws {
+        throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
+    }
+
+    public func uninstallLanguage(locale: String) throws {
+        throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
+    }
+
+    public func capabilities() throws -> SpeechCapabilities {
+        return SpeechCapabilities(available: false, reason: "Speech framework is not available on this platform")
+    }
+}
+
+/// Factory that returns a stub provider when Speech framework is unavailable.
+public func makeAppleSpeechProvider() -> SpeechProvider {
+    return StubSpeechProvider()
 }
 
 #endif
