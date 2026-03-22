@@ -1,5 +1,8 @@
 # Vision Extensions Implementation Plan
 
+> **GitHub Issue:** https://github.com/genesiscz/darwinkit-swift/issues/5
+
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Extend the existing `vision.*` namespace with 6 new methods (classify, feature_print, similarity, detect_faces, detect_barcodes, saliency) using Apple's Vision framework.
