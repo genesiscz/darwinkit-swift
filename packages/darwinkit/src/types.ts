@@ -415,6 +415,48 @@ export interface TranslatePrepareResult {
   ok: true
   source: string
   target: string
+// Speech
+// ---------------------------------------------------------------------------
+
+export interface SpeechTranscribeParams {
+  path: string
+  language?: string      // default: "en-US"
+  timestamps?: boolean   // default: true
+}
+export interface SpeechTranscriptionSegment {
+  text: string
+  start_time: number
+  end_time: number
+  is_final: boolean
+}
+export interface SpeechTranscribeResult {
+  text: string
+  segments: SpeechTranscriptionSegment[]
+  language: string
+  duration: number
+}
+
+export interface SpeechLanguageInfo {
+  locale: string
+  installed: boolean
+}
+export interface SpeechLanguagesResult {
+  languages: SpeechLanguageInfo[]
+}
+
+export interface SpeechInstallLanguageParams {
+  locale: string
+}
+export interface SpeechUninstallLanguageParams {
+  locale: string
+}
+export interface SpeechOkResult {
+  ok: true
+}
+
+export interface SpeechCapabilitiesResult {
+  available: boolean
+  reason?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -521,7 +563,7 @@ export interface MethodMap {
     params: CoreMLContextualEmbedBatchParams
     result: CoreMLEmbedBatchResult
   }
-  "translate.text": {
+"translate.text": {
     params: TranslateTextParams
     result: TranslateTextResult
   }
@@ -540,6 +582,29 @@ export interface MethodMap {
   "translate.prepare": {
     params: TranslatePrepareParams
     result: TranslatePrepareResult
+"speech.transcribe": {
+    params: SpeechTranscribeParams
+    result: SpeechTranscribeResult
+  }
+  "speech.languages": {
+    params: Record<string, never>
+    result: SpeechLanguagesResult
+  }
+  "speech.installed_languages": {
+    params: Record<string, never>
+    result: SpeechLanguagesResult
+  }
+  "speech.install_language": {
+    params: SpeechInstallLanguageParams
+    result: SpeechOkResult
+  }
+  "speech.uninstall_language": {
+    params: SpeechUninstallLanguageParams
+    result: SpeechOkResult
+  }
+  "speech.capabilities": {
+    params: Record<string, never>
+    result: SpeechCapabilitiesResult
   }
 }
 
