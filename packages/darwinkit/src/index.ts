@@ -15,6 +15,7 @@ export { CoreML } from "./namespaces/coreml.js"
 export { Translate } from "./namespaces/translate.js"
 export { Speech } from "./namespaces/speech.js"
 export { Sound } from "./namespaces/sound.js"
+export { LLM } from "./namespaces/llm.js"
 
 // All types
 export type {
@@ -134,6 +135,18 @@ export type {
   SoundClassifyAtResult,
   SoundCategoriesResult,
   SoundAvailableResult,
+  // LLM
+  LLMGenerateParams,
+  LLMGenerateResult,
+  LLMGenerateStructuredParams,
+  LLMGenerateStructuredResult,
+  LLMStreamParams,
+  LLMSessionCreateParams,
+  LLMSessionRespondParams,
+  LLMSessionCloseParams,
+  LLMAvailableResult,
+  LLMOkResult,
+  LLMChunkNotification,
   // Notifications
   ReadyNotification,
   FilesChangedNotification,
