@@ -76,4 +76,150 @@ private func makeRequest(method: String, params: [String: Any] = [:]) -> JsonRpc
     return JsonRpcRequest(id: "test", method: method, params: codableParams)
 }
 
-// MARK: - Tests (placeholder -- handler tests added in Task 6)
+// MARK: - Tests
+
+@Suite("Reminders Handler")
+struct RemindersHandlerTests {
+
+    // MARK: - reminders.authorized
+
+    @Test("authorized returns fullAccess status")
+    func authorizedSuccess() throws {
+        let handler = RemindersHandler(provider: MockRemindersProvider())
+        let request = makeRequest(method: "reminders.authorized")
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["status"] as? String == "fullAccess")
+        #expect(result["authorized"] as? Bool == true)
+    }
+
+    @Test("authorized returns denied status")
+    func authorizedDenied() throws {
+        var mock = MockRemindersProvider()
+        mock.authResult = RemindersAuthorizationResult(status: "denied", authorized: false)
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.authorized")
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["status"] as? String == "denied")
+        #expect(result["authorized"] as? Bool == false)
+    }
+
+    // MARK: - reminders.lists
+
+    @Test("lists returns empty array when none exist")
+    func listsEmpty() throws {
+        let handler = RemindersHandler(provider: MockRemindersProvider())
+        let request = makeRequest(method: "reminders.lists")
+        let result = try handler.handle(request) as! [String: Any]
+        let lists = result["lists"] as! [[String: Any]]
+
+        #expect(lists.isEmpty)
+    }
+
+    @Test("lists returns reminder lists")
+    func listsWithEntries() throws {
+        var mock = MockRemindersProvider()
+        mock.lists = [makeSampleList()]
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.lists")
+        let result = try handler.handle(request) as! [String: Any]
+        let lists = result["lists"] as! [[String: Any]]
+
+        #expect(lists.count == 1)
+        #expect(lists[0]["title"] as? String == "Groceries")
+        #expect(lists[0]["color"] as? String == "#34C759")
+    }
+
+    // MARK: - reminders.items
+
+    @Test("items returns all reminders by default")
+    func itemsAll() throws {
+        var mock = MockRemindersProvider()
+        mock.reminders = [
+            makeSampleReminder(identifier: "r1", isCompleted: false),
+            makeSampleReminder(identifier: "r2", isCompleted: true),
+        ]
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.items")
+        let result = try handler.handle(request) as! [String: Any]
+        let items = result["reminders"] as! [[String: Any]]
+
+        #expect(items.count == 2)
+    }
+
+    @Test("items filters by completed")
+    func itemsCompleted() throws {
+        var mock = MockRemindersProvider()
+        mock.reminders = [
+            makeSampleReminder(identifier: "r1", isCompleted: false),
+            makeSampleReminder(identifier: "r2", isCompleted: true),
+        ]
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.items", params: ["filter": "completed"])
+        let result = try handler.handle(request) as! [String: Any]
+        let items = result["reminders"] as! [[String: Any]]
+
+        #expect(items.count == 1)
+        #expect(items[0]["is_completed"] as? Bool == true)
+    }
+
+    @Test("items filters by incomplete")
+    func itemsIncomplete() throws {
+        var mock = MockRemindersProvider()
+        mock.reminders = [
+            makeSampleReminder(identifier: "r1", isCompleted: false),
+            makeSampleReminder(identifier: "r2", isCompleted: true),
+        ]
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.items", params: ["filter": "incomplete"])
+        let result = try handler.handle(request) as! [String: Any]
+        let items = result["reminders"] as! [[String: Any]]
+
+        #expect(items.count == 1)
+        #expect(items[0]["is_completed"] as? Bool == false)
+    }
+
+    @Test("items filters by list_identifiers")
+    func itemsByList() throws {
+        var mock = MockRemindersProvider()
+        mock.reminders = [
+            makeSampleReminder(identifier: "r1", listIdentifier: "list-1"),
+            makeSampleReminder(identifier: "r2", listIdentifier: "list-2"),
+        ]
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.items", params: [
+            "list_identifiers": ["list-1"]
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let items = result["reminders"] as! [[String: Any]]
+
+        #expect(items.count == 1)
+        #expect(items[0]["identifier"] as? String == "r1")
+    }
+
+    // MARK: - Method registration
+
+    @Test("handler registers all 3 reminders methods")
+    func methodRegistration() {
+        let handler = RemindersHandler(provider: MockRemindersProvider())
+        let expected: Set<String> = [
+            "reminders.authorized", "reminders.lists", "reminders.items"
+        ]
+        #expect(Set(handler.methods) == expected)
+    }
+
+    // MARK: - Error propagation
+
+    @Test("provider errors propagate through handler")
+    func providerError() {
+        var mock = MockRemindersProvider()
+        mock.shouldThrow = .permissionDenied("Reminders access denied")
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.lists")
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+}
