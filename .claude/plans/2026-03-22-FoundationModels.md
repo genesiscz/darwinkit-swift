@@ -1,5 +1,8 @@
 # Foundation Models (`llm.*`) Implementation Plan
 
+> **GitHub Issue:** https://github.com/genesiscz/darwinkit-swift/issues/6
+
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add on-device LLM support via Apple's FoundationModels framework (macOS 26+), exposed as 7 JSON-RPC methods under the `llm.*` namespace.
