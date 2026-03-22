@@ -63,8 +63,9 @@ func buildServerWithRouter() -> JsonRpcServer {
     router.register(SoundHandler())
     router.register(CloudHandler(notificationSink: server))
     router.register(AuthHandler())
-router.register(TranslationHandler(provider: makeTranslationProvider()))
-router.register(SpeechHandler(provider: makeAppleSpeechProvider()))
+    router.register(TranslationHandler(provider: makeTranslationProvider()))
+    router.register(SpeechHandler(provider: makeAppleSpeechProvider()))
+    router.register(LLMHandler(provider: MockLLMProvider(), notificationSink: server))
 
     return server
 }
@@ -79,8 +80,9 @@ func buildRouter() -> MethodRouter {
     router.register(SoundHandler())
     router.register(CloudHandler())
     router.register(AuthHandler())
-router.register(TranslationHandler(provider: makeTranslationProvider()))
-router.register(SpeechHandler(provider: makeAppleSpeechProvider()))
+    router.register(TranslationHandler(provider: makeTranslationProvider()))
+    router.register(SpeechHandler(provider: makeAppleSpeechProvider()))
+    router.register(LLMHandler(provider: MockLLMProvider()))
     return router
 }
 
