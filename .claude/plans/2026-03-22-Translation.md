@@ -1,5 +1,8 @@
 # Translation Framework Implementation Plan
 
+> **GitHub Issue:** https://github.com/genesiscz/darwinkit-swift/issues/4
+
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add on-device text translation to DarwinKit via Apple's Translation framework (macOS 14.4+ / iOS 17.4+), exposing 5 JSON-RPC methods: `translate.text`, `translate.batch`, `translate.languages`, `translate.language_status`, and `translate.prepare`.
