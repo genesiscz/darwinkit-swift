@@ -15,8 +15,15 @@ import { Auth } from "./namespaces/auth.js"
 import { System } from "./namespaces/system.js"
 import { ICloud } from "./namespaces/icloud.js"
 import { CoreML } from "./namespaces/coreml.js"
+<<<<<<< HEAD
 import { Translate } from "./namespaces/translate.js"
+<<<<<<< HEAD
 import { Speech } from "./namespaces/speech.js"
+=======
+=======
+import { Sound } from "./namespaces/sound.js"
+>>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
+>>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -89,8 +96,16 @@ export class DarwinKit implements DarwinKitClient {
   readonly system: System
   readonly icloud: ICloud
   readonly coreml: CoreML
+<<<<<<< HEAD
 readonly translate: Translate
 readonly speech: Speech
+=======
+<<<<<<< HEAD
+  readonly translate: Translate
+=======
+  readonly sound: Sound
+>>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
+>>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
 
   private transport = new Transport()
   private pending = new Map<string, PendingRequest>()
@@ -133,8 +148,16 @@ readonly speech: Speech
     this.system = new System(this)
     this.icloud = new ICloud(this)
     this.coreml = new CoreML(this)
+<<<<<<< HEAD
 this.translate = new Translate(this)
 this.speech = new Speech(this)
+=======
+<<<<<<< HEAD
+    this.translate = new Translate(this)
+=======
+    this.sound = new Sound(this)
+>>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
+>>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
   }
 
   get connected(): boolean {

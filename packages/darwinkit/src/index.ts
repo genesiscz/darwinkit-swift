@@ -12,8 +12,15 @@ export { Auth } from "./namespaces/auth.js"
 export { System } from "./namespaces/system.js"
 export { ICloud } from "./namespaces/icloud.js"
 export { CoreML } from "./namespaces/coreml.js"
+<<<<<<< HEAD
 export { Translate } from "./namespaces/translate.js"
+<<<<<<< HEAD
 export { Speech } from "./namespaces/speech.js"
+=======
+=======
+export { Sound } from "./namespaces/sound.js"
+>>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
+>>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
 
 // All types
 export type {
@@ -102,7 +109,12 @@ export type {
   CoreMLContextualEmbedParams,
   CoreMLContextualEmbedBatchParams,
   CoreMLOkResult,
+<<<<<<< HEAD
 // Translation
+=======
+<<<<<<< HEAD
+  // Translation
+>>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
   TranslateTextParams,
   TranslateTextResult,
   TranslateBatchParams,
@@ -114,6 +126,7 @@ export type {
   TranslateLanguageStatusResult,
   TranslatePrepareParams,
   TranslatePrepareResult,
+<<<<<<< HEAD
 // Speech
   SpeechTranscribeParams,
   SpeechTranscriptionSegment,
@@ -124,6 +137,18 @@ export type {
   SpeechUninstallLanguageParams,
   SpeechOkResult,
   SpeechCapabilitiesResult,
+=======
+=======
+  // Sound Analysis
+  SoundClassification,
+  SoundClassifyParams,
+  SoundTimeRange,
+  SoundClassifyResult,
+  SoundClassifyAtParams,
+  SoundCategoriesResult,
+  SoundAvailableResult,
+>>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
+>>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
   // Notifications
   ReadyNotification,
   FilesChangedNotification,
