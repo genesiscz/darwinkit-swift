@@ -66,6 +66,9 @@ func buildServerWithRouter() -> JsonRpcServer {
     router.register(TranslationHandler(provider: makeTranslationProvider()))
     router.register(SpeechHandler(provider: makeAppleSpeechProvider()))
     router.register(LLMHandler(provider: makeDefaultLLMProvider(), notificationSink: server))
+    router.register(ContactsHandler(provider: AppleContactsProvider()))
+    router.register(CalendarHandler(provider: AppleCalendarProvider()))
+    router.register(RemindersHandler(provider: AppleRemindersProvider()))
 
     return server
 }
@@ -83,6 +86,9 @@ func buildRouter() -> MethodRouter {
     router.register(TranslationHandler(provider: makeTranslationProvider()))
     router.register(SpeechHandler(provider: makeAppleSpeechProvider()))
     router.register(LLMHandler(provider: makeDefaultLLMProvider()))
+    router.register(ContactsHandler(provider: AppleContactsProvider()))
+    router.register(CalendarHandler(provider: AppleCalendarProvider()))
+    router.register(RemindersHandler(provider: AppleRemindersProvider()))
     return router
 }
 
