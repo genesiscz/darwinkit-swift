@@ -1,24 +1,29 @@
-export { DarwinKit } from "./client.js"
-export type { DarwinKitOptions, DarwinKitClient, Logger, LogLevel } from "./client.js"
-export { DarwinKitError, ErrorCodes } from "./errors.js"
-export type { ErrorCode } from "./errors.js"
-export type { DarwinKitEvent, EventMap, EventType } from "./events.js"
-export { ensureBinary } from "./binary.js"
+export { DarwinKit } from "./client.js";
+export type {
+  DarwinKitOptions,
+  DarwinKitClient,
+  Logger,
+  LogLevel,
+} from "./client.js";
+export { DarwinKitError, ErrorCodes } from "./errors.js";
+export type { ErrorCode } from "./errors.js";
+export type { DarwinKitEvent, EventMap, EventType } from "./events.js";
+export { ensureBinary } from "./binary.js";
 
 // Namespace classes (for advanced usage / custom composition)
-export { NLP } from "./namespaces/nlp.js"
-export { Vision } from "./namespaces/vision.js"
-export { Auth } from "./namespaces/auth.js"
-export { System } from "./namespaces/system.js"
-export { ICloud } from "./namespaces/icloud.js"
-export { CoreML } from "./namespaces/coreml.js"
-export { Translate } from "./namespaces/translate.js"
-export { Speech } from "./namespaces/speech.js"
-export { Sound } from "./namespaces/sound.js"
-export { LLM } from "./namespaces/llm.js"
-export { Contacts } from "./namespaces/contacts.js"
-export { Calendar } from "./namespaces/calendar.js"
-export { Reminders } from "./namespaces/reminders.js"
+export { NLP } from "./namespaces/nlp.js";
+export { Vision } from "./namespaces/vision.js";
+export { Auth } from "./namespaces/auth.js";
+export { System } from "./namespaces/system.js";
+export { ICloud } from "./namespaces/icloud.js";
+export { CoreML } from "./namespaces/coreml.js";
+export { Translate } from "./namespaces/translate.js";
+export { Speech } from "./namespaces/speech.js";
+export { Sound } from "./namespaces/sound.js";
+export { LLM } from "./namespaces/llm.js";
+export { Contacts } from "./namespaces/contacts.js";
+export { Calendar } from "./namespaces/calendar.js";
+export { Reminders } from "./namespaces/reminders.js";
 
 // All types
 export type {
@@ -179,4 +184,4 @@ export type {
   // Notifications
   ReadyNotification,
   FilesChangedNotification,
-} from "./types.js"
+} from "./types.js";

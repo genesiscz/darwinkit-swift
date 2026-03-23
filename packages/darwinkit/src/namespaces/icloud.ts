@@ -1,4 +1,4 @@
-import type { DarwinKitClient } from "../client.js"
+import type { DarwinKitClient } from "../client.js";
 import type {
   MethodMap,
   MethodName,
@@ -16,15 +16,15 @@ import type {
   ICloudEnsureDirParams,
   ICloudOkResult,
   FilesChangedNotification,
-} from "../types.js"
+} from "../types.js";
 
 // helper to create callable+preparable methods
 type PreparedMethod<M extends MethodName> = ((
   params: MethodMap[M]["params"],
   options?: { timeout?: number },
 ) => Promise<MethodMap[M]["result"]>) & {
-  prepare(params: MethodMap[M]["params"]): PreparedCall<M>
-}
+  prepare(params: MethodMap[M]["params"]): PreparedCall<M>;
+};
 
 function method<M extends MethodName>(
   client: DarwinKitClient,
@@ -33,91 +33,91 @@ function method<M extends MethodName>(
   const fn = ((
     params: MethodMap[M]["params"],
     options?: { timeout?: number },
-  ) => client.call(name, params, options)) as PreparedMethod<M>
+  ) => client.call(name, params, options)) as PreparedMethod<M>;
   fn.prepare = (params: MethodMap[M]["params"]): PreparedCall<M> => ({
     method: name,
     params,
     __brand: undefined as unknown as MethodMap[M]["result"],
-  })
-  return fn
+  });
+  return fn;
 }
 
 export class ICloud {
-  private client: DarwinKitClient
+  private client: DarwinKitClient;
   private filesChangedListeners: Array<
     (notification: FilesChangedNotification) => void
-  > = []
+  > = [];
 
   readonly read: {
     (
       params: ICloudReadParams,
       options?: { timeout?: number },
-    ): Promise<ICloudReadResult>
-    prepare(params: ICloudReadParams): PreparedCall<"icloud.read">
-  }
+    ): Promise<ICloudReadResult>;
+    prepare(params: ICloudReadParams): PreparedCall<"icloud.read">;
+  };
   readonly write: {
     (
       params: ICloudWriteParams,
       options?: { timeout?: number },
-    ): Promise<ICloudOkResult>
-    prepare(params: ICloudWriteParams): PreparedCall<"icloud.write">
-  }
+    ): Promise<ICloudOkResult>;
+    prepare(params: ICloudWriteParams): PreparedCall<"icloud.write">;
+  };
   readonly writeBytes: {
     (
       params: ICloudWriteBytesParams,
       options?: { timeout?: number },
-    ): Promise<ICloudOkResult>
-    prepare(params: ICloudWriteBytesParams): PreparedCall<"icloud.write_bytes">
-  }
+    ): Promise<ICloudOkResult>;
+    prepare(params: ICloudWriteBytesParams): PreparedCall<"icloud.write_bytes">;
+  };
   readonly delete: {
     (
       params: ICloudDeleteParams,
       options?: { timeout?: number },
-    ): Promise<ICloudOkResult>
-    prepare(params: ICloudDeleteParams): PreparedCall<"icloud.delete">
-  }
+    ): Promise<ICloudOkResult>;
+    prepare(params: ICloudDeleteParams): PreparedCall<"icloud.delete">;
+  };
   readonly move: {
     (
       params: ICloudMoveParams,
       options?: { timeout?: number },
-    ): Promise<ICloudOkResult>
-    prepare(params: ICloudMoveParams): PreparedCall<"icloud.move">
-  }
+    ): Promise<ICloudOkResult>;
+    prepare(params: ICloudMoveParams): PreparedCall<"icloud.move">;
+  };
   readonly copyFile: {
     (
       params: ICloudCopyFileParams,
       options?: { timeout?: number },
-    ): Promise<ICloudOkResult>
-    prepare(params: ICloudCopyFileParams): PreparedCall<"icloud.copy_file">
-  }
+    ): Promise<ICloudOkResult>;
+    prepare(params: ICloudCopyFileParams): PreparedCall<"icloud.copy_file">;
+  };
   readonly listDir: {
     (
       params: ICloudListDirParams,
       options?: { timeout?: number },
-    ): Promise<ICloudListDirResult>
-    prepare(params: ICloudListDirParams): PreparedCall<"icloud.list_dir">
-  }
+    ): Promise<ICloudListDirResult>;
+    prepare(params: ICloudListDirParams): PreparedCall<"icloud.list_dir">;
+  };
   readonly ensureDir: {
     (
       params: ICloudEnsureDirParams,
       options?: { timeout?: number },
-    ): Promise<ICloudOkResult>
-    prepare(params: ICloudEnsureDirParams): PreparedCall<"icloud.ensure_dir">
-  }
+    ): Promise<ICloudOkResult>;
+    prepare(params: ICloudEnsureDirParams): PreparedCall<"icloud.ensure_dir">;
+  };
 
   constructor(client: DarwinKitClient) {
-    this.client = client
-    this.read = method(client, "icloud.read") as ICloud["read"]
-    this.write = method(client, "icloud.write") as ICloud["write"]
+    this.client = client;
+    this.read = method(client, "icloud.read") as ICloud["read"];
+    this.write = method(client, "icloud.write") as ICloud["write"];
     this.writeBytes = method(
       client,
       "icloud.write_bytes",
-    ) as ICloud["writeBytes"]
-    this.delete = method(client, "icloud.delete") as ICloud["delete"]
-    this.move = method(client, "icloud.move") as ICloud["move"]
-    this.copyFile = method(client, "icloud.copy_file") as ICloud["copyFile"]
-    this.listDir = method(client, "icloud.list_dir") as ICloud["listDir"]
-    this.ensureDir = method(client, "icloud.ensure_dir") as ICloud["ensureDir"]
+    ) as ICloud["writeBytes"];
+    this.delete = method(client, "icloud.delete") as ICloud["delete"];
+    this.move = method(client, "icloud.move") as ICloud["move"];
+    this.copyFile = method(client, "icloud.copy_file") as ICloud["copyFile"];
+    this.listDir = method(client, "icloud.list_dir") as ICloud["listDir"];
+    this.ensureDir = method(client, "icloud.ensure_dir") as ICloud["ensureDir"];
   }
 
   status(options?: { timeout?: number }): Promise<ICloudStatusResult> {
@@ -125,7 +125,7 @@ export class ICloud {
       "icloud.status",
       {} as Record<string, never>,
       options,
-    )
+    );
   }
 
   startMonitoring(options?: { timeout?: number }): Promise<ICloudOkResult> {
@@ -133,7 +133,7 @@ export class ICloud {
       "icloud.start_monitoring",
       {} as Record<string, never>,
       options,
-    )
+    );
   }
 
   stopMonitoring(options?: { timeout?: number }): Promise<ICloudOkResult> {
@@ -141,23 +141,23 @@ export class ICloud {
       "icloud.stop_monitoring",
       {} as Record<string, never>,
       options,
-    )
+    );
   }
 
   onFilesChanged(
     handler: (notification: FilesChangedNotification) => void,
   ): () => void {
-    this.filesChangedListeners.push(handler)
+    this.filesChangedListeners.push(handler);
     return () => {
-      const idx = this.filesChangedListeners.indexOf(handler)
-      if (idx !== -1) this.filesChangedListeners.splice(idx, 1)
-    }
+      const idx = this.filesChangedListeners.indexOf(handler);
+      if (idx !== -1) this.filesChangedListeners.splice(idx, 1);
+    };
   }
 
   /** @internal Called by DarwinKit client when filesChanged notification arrives */
   _notifyFilesChanged(notification: FilesChangedNotification): void {
     for (const handler of this.filesChangedListeners) {
-      handler(notification)
+      handler(notification);
     }
   }
 }

@@ -1,11 +1,11 @@
-import type { DarwinKitClient } from "../client.js"
-import type { PreparedCall, CapabilitiesResult } from "../types.js"
+import type { DarwinKitClient } from "../client.js";
+import type { PreparedCall, CapabilitiesResult } from "../types.js";
 
 export class System {
-  private client: DarwinKitClient
+  private client: DarwinKitClient;
 
   constructor(client: DarwinKitClient) {
-    this.client = client
+    this.client = client;
   }
 
   capabilities(options?: { timeout?: number }): Promise<CapabilitiesResult> {
@@ -13,7 +13,7 @@ export class System {
       "system.capabilities",
       {} as Record<string, never>,
       options,
-    )
+    );
   }
 
   prepareCapabilities(): PreparedCall<"system.capabilities"> {
@@ -21,6 +21,6 @@ export class System {
       method: "system.capabilities",
       params: {} as Record<string, never>,
       __brand: undefined as unknown as CapabilitiesResult,
-    }
+    };
   }
 }

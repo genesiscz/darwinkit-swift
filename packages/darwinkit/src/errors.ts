@@ -8,29 +8,29 @@ export const ErrorCodes = {
   PERMISSION_DENIED: -32002,
   OS_VERSION_TOO_OLD: -32003,
   OPERATION_CANCELLED: -32004,
-} as const
+} as const;
 
-export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
+export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
 export class DarwinKitError extends Error {
-  override readonly name = "DarwinKitError"
+  override readonly name = "DarwinKitError";
   constructor(
     public readonly code: number,
     message: string,
     public readonly data?: unknown,
   ) {
-    super(message)
+    super(message);
   }
   get isFrameworkUnavailable() {
-    return this.code === ErrorCodes.FRAMEWORK_UNAVAILABLE
+    return this.code === ErrorCodes.FRAMEWORK_UNAVAILABLE;
   }
   get isPermissionDenied() {
-    return this.code === ErrorCodes.PERMISSION_DENIED
+    return this.code === ErrorCodes.PERMISSION_DENIED;
   }
   get isOSVersionTooOld() {
-    return this.code === ErrorCodes.OS_VERSION_TOO_OLD
+    return this.code === ErrorCodes.OS_VERSION_TOO_OLD;
   }
   get isCancelled() {
-    return this.code === ErrorCodes.OPERATION_CANCELLED
+    return this.code === ErrorCodes.OPERATION_CANCELLED;
   }
 }
