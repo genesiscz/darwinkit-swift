@@ -18,6 +18,7 @@ import { CoreML } from "./namespaces/coreml.js"
 import { Translate } from "./namespaces/translate.js"
 import { Speech } from "./namespaces/speech.js"
 import { Sound } from "./namespaces/sound.js"
+import { LLM } from "./namespaces/llm.js"
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -93,6 +94,7 @@ export class DarwinKit implements DarwinKitClient {
   readonly translate: Translate
   readonly speech: Speech
   readonly sound: Sound
+  readonly llm: LLM
 
   private transport = new Transport()
   private pending = new Map<string, PendingRequest>()
@@ -138,6 +140,7 @@ export class DarwinKit implements DarwinKitClient {
     this.translate = new Translate(this)
     this.speech = new Speech(this)
     this.sound = new Sound(this)
+    this.llm = new LLM(this)
   }
 
   get connected(): boolean {
@@ -345,6 +348,14 @@ export class DarwinKit implements DarwinKitClient {
       const params = msg.params as { paths: string[] }
       this.emit({ type: "filesChanged", paths: params.paths })
       this.icloud._notifyFilesChanged(params)
+      return
+    }
+
+    // LLM streaming chunk notification
+    if (msg.method === "llm.chunk") {
+      const params = msg.params as { request_id: string; chunk: string }
+      this.emit({ type: "llmChunk", request_id: params.request_id, chunk: params.chunk })
+      this.llm._notifyChunk(params)
       return
     }
 
