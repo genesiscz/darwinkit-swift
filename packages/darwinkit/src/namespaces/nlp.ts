@@ -18,11 +18,21 @@ import type {
 } from "../types.js"
 
 // helper to create callable+preparable methods
-function method<M extends MethodName>(client: DarwinKitClient, name: M) {
-  const fn = (
+type PreparedMethod<M extends MethodName> = ((
+  params: MethodMap[M]["params"],
+  options?: { timeout?: number },
+) => Promise<MethodMap[M]["result"]>) & {
+  prepare(params: MethodMap[M]["params"]): PreparedCall<M>
+}
+
+function method<M extends MethodName>(
+  client: DarwinKitClient,
+  name: M,
+): PreparedMethod<M> {
+  const fn = ((
     params: MethodMap[M]["params"],
     options?: { timeout?: number },
-  ) => client.call(name, params, options)
+  ) => client.call(name, params, options)) as PreparedMethod<M>
   fn.prepare = (params: MethodMap[M]["params"]): PreparedCall<M> => ({
     method: name,
     params,
