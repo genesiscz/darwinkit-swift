@@ -35,9 +35,17 @@ public final class TranslationHandler: MethodHandler {
     public func capability(for method: String) -> MethodCapability {
         switch method {
         case "translate.languages", "translate.language_status":
-            return MethodCapability(available: true, note: "Requires macOS 14.4+")
+            if #available(macOS 14.4, *) {
+                return MethodCapability(available: true, note: "Requires macOS 14.4+")
+            } else {
+                return MethodCapability(available: false, note: "Requires macOS 14.4+")
+            }
         default:
-            return MethodCapability(available: true, note: "Requires macOS 26.0+")
+            if #available(macOS 26.0, *) {
+                return MethodCapability(available: true, note: "Requires macOS 26.0+")
+            } else {
+                return MethodCapability(available: false, note: "Requires macOS 26.0+")
+            }
         }
     }
 

@@ -7,7 +7,7 @@ Translate text between languages using Apple's [Translation framework](https://d
 | Feature | Minimum macOS |
 |---------|---------------|
 | Language availability checking (`languages`, `languageStatus`) | 14.4 (Sonoma) |
-| Language model preparation (`preparePair`) | 14.4 (Sonoma) |
+| Language model preparation (`preparePair`) | 26.0 (Tahoe) |
 | Translation (`text`, `batch`) | 26.0 (Tahoe) via `TranslationSession` |
 
 > **Note:** The Translation framework requires Apple Silicon or Intel Macs with macOS 14.4+. Translation models are downloaded on-demand by the OS and cached locally. First-time translation for a language pair may trigger a model download.
