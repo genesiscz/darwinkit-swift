@@ -169,6 +169,10 @@ public struct AppleVisionProvider: VisionProvider {
     }
 
     public func classifyImage(imagePath: String, maxResults: Int) throws -> ClassifyResult {
+        guard maxResults >= 0 else {
+            throw JsonRpcError.invalidParams("max_results must be >= 0")
+        }
+
         let url = URL(fileURLWithPath: imagePath)
 
         guard FileManager.default.fileExists(atPath: imagePath) else {

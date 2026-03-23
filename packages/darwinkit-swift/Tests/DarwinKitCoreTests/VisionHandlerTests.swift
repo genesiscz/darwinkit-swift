@@ -67,6 +67,9 @@ struct MockVisionProvider: VisionProvider {
     }
 
     func classifyImage(imagePath: String, maxResults: Int) throws -> ClassifyResult {
+        guard maxResults >= 0 else {
+            throw JsonRpcError.invalidParams("max_results must be >= 0")
+        }
         if let err = shouldThrow { throw err }
         if imagePath.contains("nonexistent") {
             throw JsonRpcError.invalidParams("File not found: \(imagePath)")
@@ -352,6 +355,19 @@ struct VisionHandlerTests {
         let handler = VisionHandler(provider: MockVisionProvider())
         let request = makeRequest(method: "vision.classify", params: [
             "path": "/tmp/nonexistent.jpg"
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("classify throws on negative max_results")
+    func classifyNegativeMaxResults() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.classify", params: [
+            "path": "/tmp/cat.jpg",
+            "max_results": -1
         ])
 
         #expect(throws: JsonRpcError.self) {
