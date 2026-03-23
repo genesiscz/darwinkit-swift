@@ -481,7 +481,7 @@ struct VisionHandlerTests {
         #expect(faces[0]["landmarks"] == nil)
     }
 
-    @Test("detect_faces with landmarks returns landmark data")
+    @Test("detect_faces with landmarks returns landmark data in FaceLandmarkPoints shape")
     func detectFacesWithLandmarks() throws {
         let handler = VisionHandler(provider: MockVisionProvider())
         let request = makeRequest(method: "vision.detect_faces", params: [
@@ -492,11 +492,21 @@ struct VisionHandlerTests {
         let faces = result["faces"] as! [[String: Any]]
         let landmarks = faces[0]["landmarks"] as! [String: Any]
 
-        #expect(landmarks["left_eye"] != nil)
-        #expect(landmarks["right_eye"] != nil)
-        #expect(landmarks["nose"] != nil)
-        #expect(landmarks["mouth"] != nil)
-        #expect(landmarks["face_contour"] != nil)
+        // Each landmark must be wrapped in a dict with a "points" key (FaceLandmarkPoints shape)
+        let leftEye = landmarks["left_eye"] as! [String: Any]
+        #expect(leftEye["points"] as? [[CGFloat]] == [[0.3, 0.6], [0.35, 0.6]])
+
+        let rightEye = landmarks["right_eye"] as! [String: Any]
+        #expect(rightEye["points"] as? [[CGFloat]] == [[0.5, 0.6], [0.55, 0.6]])
+
+        let nose = landmarks["nose"] as! [String: Any]
+        #expect(nose["points"] as? [[CGFloat]] == [[0.4, 0.5]])
+
+        let mouth = landmarks["mouth"] as! [String: Any]
+        #expect(mouth["points"] as? [[CGFloat]] == [[0.35, 0.4], [0.45, 0.4]])
+
+        let faceContour = landmarks["face_contour"] as! [String: Any]
+        #expect(faceContour["points"] as? [[CGFloat]] == [[0.2, 0.3], [0.5, 0.3]])
     }
 
     @Test("detect_faces throws on missing path")

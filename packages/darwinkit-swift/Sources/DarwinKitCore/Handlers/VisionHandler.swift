@@ -125,19 +125,19 @@ public final class VisionHandler: MethodHandler {
                 if let lm = face.landmarks {
                     var landmarksDict: [String: Any] = [:]
                     if let leftEye = lm.leftEye {
-                        landmarksDict["left_eye"] = leftEye.points
+                        landmarksDict["left_eye"] = ["points": leftEye.points]
                     }
                     if let rightEye = lm.rightEye {
-                        landmarksDict["right_eye"] = rightEye.points
+                        landmarksDict["right_eye"] = ["points": rightEye.points]
                     }
                     if let nose = lm.nose {
-                        landmarksDict["nose"] = nose.points
+                        landmarksDict["nose"] = ["points": nose.points]
                     }
                     if let mouth = lm.mouth {
-                        landmarksDict["mouth"] = mouth.points
+                        landmarksDict["mouth"] = ["points": mouth.points]
                     }
                     if let contour = lm.faceContour {
-                        landmarksDict["face_contour"] = contour.points
+                        landmarksDict["face_contour"] = ["points": contour.points]
                     }
                     dict["landmarks"] = landmarksDict
                 }
