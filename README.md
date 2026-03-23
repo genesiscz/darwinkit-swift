@@ -102,7 +102,7 @@ const { text } = await dk.vision.ocr({ path: "/tmp/screenshot.png" })
 // CoreML — GPU/Neural Engine accelerated embeddings
 const model = await dk.coreml.loadContextual({ id: "en", language: "en" })
 const embedding = await dk.coreml.contextualEmbed({ model_id: "en", text: "hello world" })
-console.log(embedding.vector.length) // 512
+console.log(embedding.dimensions) // 512 or 768 depending on macOS version
 
 // Auth
 const { available, biometry_type } = await dk.auth.available({})
@@ -396,7 +396,7 @@ Load Apple's built-in NLContextualEmbedding model. No file path needed — the m
 | `id` | string | yes | Unique identifier |
 | `language` | string | yes | Language code (e.g. `"en"`, `"de"`, `"fr"`) |
 
-Returns `{ "id": "apple-en", "dimensions": 512, "model_type": "contextual", ... }`.
+Returns `{ "id": "apple-en", "dimensions": <N>, "model_type": "contextual", ... }`. Dimensions vary by macOS version (512 or 768).
 
 ### coreml.contextual_embed
 
@@ -409,7 +409,7 @@ Embed text using a loaded contextual model. Uses vDSP-accelerated mean pooling o
 }}
 ```
 
-Returns `{ "vector": [...], "dimensions": 512 }`.
+Returns `{ "vector": [...], "dimensions": <N> }`.
 
 ### coreml.embed_contextual_batch
 
@@ -446,7 +446,7 @@ Prompt the user for device-owner authentication. Tries biometrics first, falls b
 
 | Param | Type | Required | Default |
 |-------|------|----------|---------|
-| `reason` | string | no | `"authenticate"` |
+| `reason` | string | no | system default |
 
 Returns `{ "success": true }`.
 
