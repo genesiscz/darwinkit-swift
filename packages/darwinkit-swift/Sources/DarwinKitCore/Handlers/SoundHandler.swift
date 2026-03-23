@@ -28,11 +28,17 @@ public final class SoundHandler: MethodHandler {
     }
 
     public func capability(for method: String) -> MethodCapability {
+        let available = provider.isAvailable()
         switch method {
         case "sound.classify", "sound.classify_at", "sound.categories":
-            return MethodCapability(available: true, note: "Requires macOS 12+")
-        default:
+            return MethodCapability(
+                available: available,
+                note: available ? "Requires macOS 12+" : "SoundAnalysis unavailable (requires macOS 12+)"
+            )
+        case "sound.available":
             return MethodCapability(available: true)
+        default:
+            return MethodCapability(available: false, note: "Unknown method")
         }
     }
 
@@ -41,6 +47,10 @@ public final class SoundHandler: MethodHandler {
     private func handleClassify(_ request: JsonRpcRequest) throws -> Any {
         let path = try request.requireString("path")
         let topN = request.int("top_n") ?? 5
+
+        guard topN >= 1 else {
+            throw JsonRpcError.invalidParams("top_n must be >= 1")
+        }
 
         let result = try provider.classify(path: path, topN: topN)
         return result.toDict()
@@ -57,6 +67,18 @@ public final class SoundHandler: MethodHandler {
         }
 
         let topN = request.int("top_n") ?? 5
+
+        guard topN >= 1 else {
+            throw JsonRpcError.invalidParams("top_n must be >= 1")
+        }
+
+        guard start >= 0 else {
+            throw JsonRpcError.invalidParams("start must be >= 0")
+        }
+
+        guard duration > 0 else {
+            throw JsonRpcError.invalidParams("duration must be > 0")
+        }
 
         let result = try provider.classifyAt(path: path, start: start, duration: duration, topN: topN)
         return result.toDict()

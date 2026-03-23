@@ -106,6 +106,30 @@ struct SoundHandlerTests {
         #expect(classifications.count == 3)
     }
 
+    @Test("classify throws on invalid top_n")
+    func classifyInvalidTopN() {
+        let handler = SoundHandler(provider: MockSoundProvider())
+        let request = makeRequest(method: "sound.classify", params: [
+            "path": "/tmp/test.wav", "top_n": 0
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("classify throws on negative top_n")
+    func classifyNegativeTopN() {
+        let handler = SoundHandler(provider: MockSoundProvider())
+        let request = makeRequest(method: "sound.classify", params: [
+            "path": "/tmp/test.wav", "top_n": -1
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
     @Test("classify throws on missing path")
     func classifyMissingPath() {
         let handler = SoundHandler(provider: MockSoundProvider())
@@ -156,6 +180,42 @@ struct SoundHandlerTests {
         let classifications = result["classifications"] as! [[String: Any]]
 
         #expect(classifications.count == 1)
+    }
+
+    @Test("classify_at throws on invalid top_n")
+    func classifyAtInvalidTopN() {
+        let handler = SoundHandler(provider: MockSoundProvider())
+        let request = makeRequest(method: "sound.classify_at", params: [
+            "path": "/tmp/test.wav", "start": 0.0, "duration": 1.0, "top_n": 0
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("classify_at throws on negative start at handler level")
+    func classifyAtNegativeStartHandler() {
+        let handler = SoundHandler(provider: MockSoundProvider())
+        let request = makeRequest(method: "sound.classify_at", params: [
+            "path": "/tmp/test.wav", "start": -1.0, "duration": 1.0
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
+    }
+
+    @Test("classify_at throws on zero duration at handler level")
+    func classifyAtZeroDurationHandler() {
+        let handler = SoundHandler(provider: MockSoundProvider())
+        let request = makeRequest(method: "sound.classify_at", params: [
+            "path": "/tmp/test.wav", "start": 0.0, "duration": 0.0
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
     }
 
     @Test("classify_at throws on missing path")
@@ -243,13 +303,34 @@ struct SoundHandlerTests {
         #expect(Set(handler.methods) == expected)
     }
 
-    @Test("handler reports capabilities for all methods")
+    @Test("handler reports capabilities for all methods when available")
     func capabilities() {
         let handler = SoundHandler(provider: MockSoundProvider())
         for method in handler.methods {
             let cap = handler.capability(for: method)
             #expect(cap.available == true)
         }
+    }
+
+    @Test("handler reports unavailable capability when provider is unavailable")
+    func capabilitiesUnavailable() {
+        var mock = MockSoundProvider()
+        mock.available = false
+        let handler = SoundHandler(provider: mock)
+
+        let classifyCap = handler.capability(for: "sound.classify")
+        #expect(classifyCap.available == false)
+        #expect(classifyCap.note != nil)
+
+        let classifyAtCap = handler.capability(for: "sound.classify_at")
+        #expect(classifyAtCap.available == false)
+
+        let categoriesCap = handler.capability(for: "sound.categories")
+        #expect(categoriesCap.available == false)
+
+        // sound.available should always be available
+        let availableCap = handler.capability(for: "sound.available")
+        #expect(availableCap.available == true)
     }
 
     // MARK: - Provider error propagation
