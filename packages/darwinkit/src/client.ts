@@ -15,8 +15,8 @@ import { Auth } from "./namespaces/auth.js"
 import { System } from "./namespaces/system.js"
 import { ICloud } from "./namespaces/icloud.js"
 import { CoreML } from "./namespaces/coreml.js"
-<<<<<<< HEAD
 import { Translate } from "./namespaces/translate.js"
+<<<<<<< HEAD
 <<<<<<< HEAD
 import { Speech } from "./namespaces/speech.js"
 =======
@@ -24,6 +24,9 @@ import { Speech } from "./namespaces/speech.js"
 import { Sound } from "./namespaces/sound.js"
 >>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
 >>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
+=======
+import { Sound } from "./namespaces/sound.js"
+>>>>>>> 80bdfd1 (fix: resolve remaining merge conflict markers)
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -97,6 +100,7 @@ export class DarwinKit implements DarwinKitClient {
   readonly icloud: ICloud
   readonly coreml: CoreML
 <<<<<<< HEAD
+<<<<<<< HEAD
 readonly translate: Translate
 readonly speech: Speech
 =======
@@ -106,6 +110,10 @@ readonly speech: Speech
   readonly sound: Sound
 >>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
 >>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
+=======
+readonly translate: Translate
+readonly sound: Sound
+>>>>>>> 80bdfd1 (fix: resolve remaining merge conflict markers)
 
   private transport = new Transport()
   private pending = new Map<string, PendingRequest>()
@@ -149,6 +157,7 @@ readonly speech: Speech
     this.icloud = new ICloud(this)
     this.coreml = new CoreML(this)
 <<<<<<< HEAD
+<<<<<<< HEAD
 this.translate = new Translate(this)
 this.speech = new Speech(this)
 =======
@@ -158,6 +167,10 @@ this.speech = new Speech(this)
     this.sound = new Sound(this)
 >>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
 >>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
+=======
+this.translate = new Translate(this)
+this.sound = new Sound(this)
+>>>>>>> 80bdfd1 (fix: resolve remaining merge conflict markers)
   }
 
   get connected(): boolean {
