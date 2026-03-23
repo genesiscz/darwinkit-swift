@@ -346,9 +346,11 @@ const files = [
 ]
 
 // Prepare calls (no network yet)
-const prepared = files.map((path) =>
-  dk.speech.transcribe.prepare({ path, language: "en-US" }),
-) as const
+const prepared = [
+  dk.speech.transcribe.prepare({ path: files[0], language: "en-US" }),
+  dk.speech.transcribe.prepare({ path: files[1], language: "en-US" }),
+  dk.speech.transcribe.prepare({ path: files[2], language: "en-US" }),
+] as const
 
 // Execute all in parallel
 const results = await dk.batch(...prepared)

@@ -53,6 +53,24 @@ export class Speech {
       params: SpeechUninstallLanguageParams,
     ): PreparedCall<"speech.uninstall_language">
   }
+  readonly languages: {
+    (options?: { timeout?: number }): Promise<SpeechLanguagesResult>
+    prepare(
+      params: Record<string, never>,
+    ): PreparedCall<"speech.languages">
+  }
+  readonly installedLanguages: {
+    (options?: { timeout?: number }): Promise<SpeechLanguagesResult>
+    prepare(
+      params: Record<string, never>,
+    ): PreparedCall<"speech.installed_languages">
+  }
+  readonly capabilities: {
+    (options?: { timeout?: number }): Promise<SpeechCapabilitiesResult>
+    prepare(
+      params: Record<string, never>,
+    ): PreparedCall<"speech.capabilities">
+  }
 
   private client: DarwinKitClient
 
@@ -70,36 +88,17 @@ export class Speech {
       client,
       "speech.uninstall_language",
     ) as Speech["uninstallLanguage"]
-  }
-
-  /** List all supported languages for speech recognition */
-  languages(options?: { timeout?: number }): Promise<SpeechLanguagesResult> {
-    return this.client.call(
+    this.languages = method(
+      client,
       "speech.languages",
-      {} as Record<string, never>,
-      options,
-    )
-  }
-
-  /** List installed (downloaded) language models */
-  installedLanguages(
-    options?: { timeout?: number },
-  ): Promise<SpeechLanguagesResult> {
-    return this.client.call(
+    ) as Speech["languages"]
+    this.installedLanguages = method(
+      client,
       "speech.installed_languages",
-      {} as Record<string, never>,
-      options,
-    )
-  }
-
-  /** Check speech recognition availability and device support */
-  capabilities(
-    options?: { timeout?: number },
-  ): Promise<SpeechCapabilitiesResult> {
-    return this.client.call(
+    ) as Speech["installedLanguages"]
+    this.capabilities = method(
+      client,
       "speech.capabilities",
-      {} as Record<string, never>,
-      options,
-    )
+    ) as Speech["capabilities"]
   }
 }

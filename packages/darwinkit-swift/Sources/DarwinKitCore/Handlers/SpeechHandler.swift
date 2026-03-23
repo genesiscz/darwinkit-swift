@@ -36,7 +36,36 @@ public final class SpeechHandler: MethodHandler {
     }
 
     public func capability(for method: String) -> MethodCapability {
-        MethodCapability(available: true, note: "Requires macOS 26+")
+        // Check macOS version (10.15+ required)
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersion
+        let requiresMajor = 10
+        let requiresMinor = 15
+
+        let isVersionOK: Bool
+        if osVersion.majorVersion > requiresMajor {
+            isVersionOK = true
+        } else if osVersion.majorVersion == requiresMajor {
+            isVersionOK = osVersion.minorVersion >= requiresMinor
+        } else {
+            isVersionOK = false
+        }
+
+        if !isVersionOK {
+            return MethodCapability(
+                available: false,
+                note: "Requires macOS 10.15+ (current: \(osVersion.majorVersion).\(osVersion.minorVersion))"
+            )
+        }
+
+        // Defer to provider's capabilities for further checks
+        if let caps = try? provider.capabilities() {
+            return MethodCapability(
+                available: caps.available,
+                note: caps.reason
+            )
+        }
+
+        return MethodCapability(available: true)
     }
 
     // MARK: - Method Implementations

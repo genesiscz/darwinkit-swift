@@ -121,6 +121,8 @@ public final class AppleSpeechProvider: SpeechProvider {
 
     public init() {}
 
+    deinit {}
+
     public func transcribe(path: String, language: String, includeTimestamps: Bool) throws -> TranscriptionResult {
         let url = URL(fileURLWithPath: path)
 
@@ -161,7 +163,16 @@ public final class AppleSpeechProvider: SpeechProvider {
             }
         }
 
-        semaphore.wait()
+        let timeoutResult = semaphore.wait(timeout: .now() + 300.0)
+
+        if timeoutResult == .timedOut {
+            let timeoutError = NSError(
+                domain: "com.darwinkit.speech",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Transcription timed out after 300 seconds"]
+            )
+            transcribeError = timeoutError
+        }
 
         if let error = transcribeError {
             throw JsonRpcError.internalError("Transcription failed: \(error.localizedDescription)")
@@ -255,6 +266,8 @@ public final class AppleSpeechProvider: SpeechProvider {
 /// All methods throw frameworkUnavailable.
 public final class StubSpeechProvider: SpeechProvider {
     public init() {}
+
+    deinit {}
 
     public func transcribe(path: String, language: String, includeTimestamps: Bool) throws -> TranscriptionResult {
         throw JsonRpcError.frameworkUnavailable("Speech framework is not available on this platform")
