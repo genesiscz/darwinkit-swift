@@ -1,8 +1,20 @@
 import Foundation
+import Vision
 
 /// Handles all vision.* methods.
 public final class VisionHandler: MethodHandler {
     private let provider: VisionProvider
+
+    // Maps user-friendly short names to VNBarcodeSymbology values.
+    private static let symbologyMap: [String: VNBarcodeSymbology] = [
+        "QR": .qr, "EAN13": .ean13, "EAN8": .ean8,
+        "Code128": .code128, "Code39": .code39, "Code93": .code93,
+        "UPC-E": .upce, "PDF417": .pdf417, "Aztec": .aztec,
+        "DataMatrix": .dataMatrix, "ITF14": .itf14,
+    ]
+    private static let reverseSymbologyMap: [VNBarcodeSymbology: String] = {
+        Dictionary(uniqueKeysWithValues: symbologyMap.map { ($1, $0) })
+    }()
 
     public var methods: [String] {
         [
@@ -74,6 +86,10 @@ public final class VisionHandler: MethodHandler {
     private func handleClassify(_ request: JsonRpcRequest) throws -> Any {
         let path = try request.requireString("path")
         let maxResults = request.int("max_results") ?? 10
+
+        guard maxResults >= 0 else {
+            throw JsonRpcError.invalidParams("max_results must be non-negative")
+        }
 
         let result = try provider.classifyImage(imagePath: path, maxResults: maxResults)
 
@@ -148,15 +164,32 @@ public final class VisionHandler: MethodHandler {
 
     private func handleDetectBarcodes(_ request: JsonRpcRequest) throws -> Any {
         let path = try request.requireString("path")
-        let symbologies = request.stringArray("symbologies")
+        let rawSymbologies = request.stringArray("symbologies")
 
-        let result = try provider.detectBarcodes(imagePath: path, symbologies: symbologies)
+        // Normalize short names to raw VNBarcodeSymbology strings for the provider
+        let knownRawValues = Set(Self.symbologyMap.values.map { $0.rawValue })
+        let providerSymbologies: [String]? = try rawSymbologies.map { names in
+            try names.map { name -> String in
+                if let mapped = Self.symbologyMap[name] {
+                    return mapped.rawValue
+                }
+                // Allow raw VNBarcodeSymbology strings as passthrough
+                if knownRawValues.contains(name) {
+                    return name
+                }
+                throw JsonRpcError.invalidParams("Unknown symbology: \(name)")
+            }
+        }
+
+        let result = try provider.detectBarcodes(imagePath: path, symbologies: providerSymbologies)
 
         return [
             "barcodes": result.barcodes.map { barcode in
-                [
+                // Convert raw VNBarcodeSymbology string back to short name if possible
+                let shortName = Self.reverseSymbologyMap[VNBarcodeSymbology(rawValue: barcode.symbology)] ?? barcode.symbology
+                return [
                     "payload": barcode.payload as Any,
-                    "symbology": barcode.symbology,
+                    "symbology": shortName,
                     "bounds": [
                         "x": barcode.bounds.x,
                         "y": barcode.bounds.y,

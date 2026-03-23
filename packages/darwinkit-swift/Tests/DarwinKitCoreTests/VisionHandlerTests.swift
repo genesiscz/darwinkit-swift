@@ -4,7 +4,7 @@ import Testing
 
 // MARK: - Mock Provider
 
-struct MockVisionProvider: VisionProvider {
+class MockVisionProvider: VisionProvider {
     var ocrResult = OCRResult(
         text: "Hello World\nSecond Line",
         blocks: [
@@ -57,6 +57,9 @@ struct MockVisionProvider: VisionProvider {
         )
     ])
 
+    /// Records the symbologies received by detectBarcodes calls.
+    var receivedSymbologies: [String]?
+
     func recognizeText(imagePath: String, languages: [String], level: RecognitionLevel) throws -> OCRResult {
         if let err = shouldThrow { throw err }
         // Simulate file-not-found for missing paths
@@ -103,6 +106,7 @@ struct MockVisionProvider: VisionProvider {
     }
 
     func detectBarcodes(imagePath: String, symbologies: [String]?) throws -> DetectBarcodesResult {
+        receivedSymbologies = symbologies
         if let err = shouldThrow { throw err }
         if imagePath.contains("nonexistent") {
             throw JsonRpcError.invalidParams("File not found: \(imagePath)")
@@ -252,7 +256,7 @@ struct VisionHandlerTests {
 
     @Test("ocr propagates provider errors")
     func ocrProviderError() {
-        var mock = MockVisionProvider()
+        let mock = MockVisionProvider()
         mock.shouldThrow = .internalError("Vision framework crashed")
         let handler = VisionHandler(provider: mock)
         let request = makeRequest(method: "vision.ocr", params: [
@@ -268,7 +272,7 @@ struct VisionHandlerTests {
 
     @Test("ocr handles empty image")
     func ocrEmptyResult() throws {
-        var mock = MockVisionProvider()
+        let mock = MockVisionProvider()
         mock.ocrResult = OCRResult(text: "", blocks: [])
         let handler = VisionHandler(provider: mock)
         let request = makeRequest(method: "vision.ocr", params: [
@@ -537,7 +541,7 @@ struct VisionHandlerTests {
 
     @Test("detect_faces handles no faces found")
     func detectFacesEmpty() throws {
-        var mock = MockVisionProvider()
+        let mock = MockVisionProvider()
         mock.detectFacesResult = DetectFacesResult(faces: [])
         let handler = VisionHandler(provider: mock)
         let request = makeRequest(method: "vision.detect_faces", params: [
@@ -551,7 +555,7 @@ struct VisionHandlerTests {
 
     // MARK: - vision.detect_barcodes
 
-    @Test("detect_barcodes returns barcode payload and symbology")
+    @Test("detect_barcodes returns barcode payload and normalized symbology")
     func detectBarcodesSuccess() throws {
         let handler = VisionHandler(provider: MockVisionProvider())
         let request = makeRequest(method: "vision.detect_barcodes", params: [
@@ -562,7 +566,7 @@ struct VisionHandlerTests {
 
         #expect(barcodes.count == 1)
         #expect(barcodes[0]["payload"] as? String == "https://example.com")
-        #expect(barcodes[0]["symbology"] as? String == "VNBarcodeSymbologyQR")
+        #expect(barcodes[0]["symbology"] as? String == "QR")
     }
 
     @Test("detect_barcodes returns bounds")
@@ -591,7 +595,7 @@ struct VisionHandlerTests {
 
     @Test("detect_barcodes handles no barcodes found")
     func detectBarcodesEmpty() throws {
-        var mock = MockVisionProvider()
+        let mock = MockVisionProvider()
         mock.detectBarcodesResult = DetectBarcodesResult(barcodes: [])
         let handler = VisionHandler(provider: mock)
         let request = makeRequest(method: "vision.detect_barcodes", params: [
@@ -603,15 +607,34 @@ struct VisionHandlerTests {
         #expect(barcodes.isEmpty)
     }
 
-    @Test("detect_barcodes accepts symbologies filter")
+    @Test("detect_barcodes accepts short symbology names and normalizes for provider")
     func detectBarcodesSymbologies() throws {
-        let handler = VisionHandler(provider: MockVisionProvider())
+        let mock = MockVisionProvider()
+        let handler = VisionHandler(provider: mock)
         let request = makeRequest(method: "vision.detect_barcodes", params: [
             "path": "/tmp/qr.jpg",
-            "symbologies": ["VNBarcodeSymbologyQR", "VNBarcodeSymbologyEAN13"]
+            "symbologies": ["QR", "EAN13"]
         ])
         let result = try handler.handle(request) as! [String: Any]
         #expect(result["barcodes"] != nil)
+
+        // Verify the provider received raw VNBarcodeSymbology strings
+        #expect(mock.receivedSymbologies != nil)
+        #expect(mock.receivedSymbologies!.contains("VNBarcodeSymbologyQR"))
+        #expect(mock.receivedSymbologies!.contains("VNBarcodeSymbologyEAN13"))
+    }
+
+    @Test("detect_barcodes throws on unknown symbology")
+    func detectBarcodesUnknownSymbology() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let request = makeRequest(method: "vision.detect_barcodes", params: [
+            "path": "/tmp/qr.jpg",
+            "symbologies": ["UnknownCode"]
+        ])
+
+        #expect(throws: JsonRpcError.self) {
+            try handler.handle(request)
+        }
     }
 
     // MARK: - vision.saliency

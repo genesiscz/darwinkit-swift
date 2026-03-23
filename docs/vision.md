@@ -730,15 +730,14 @@ async function suggestCrop(
 
   // Expand to target aspect ratio while keeping the salient area centered
   const cropSize = Math.max(primary.bounds.width, primary.bounds.height)
-  const cropWidth = targetAspectRatio >= 1 ? cropSize : cropSize * targetAspectRatio
-  const cropHeight = targetAspectRatio >= 1 ? cropSize / targetAspectRatio : cropSize
+  const cropWidth = Math.min(1, targetAspectRatio >= 1 ? cropSize : cropSize * targetAspectRatio)
+  const cropHeight = Math.min(1, targetAspectRatio >= 1 ? cropSize / targetAspectRatio : cropSize)
 
-  return {
-    x: Math.max(0, centerX - cropWidth / 2),
-    y: Math.max(0, centerY - cropHeight / 2),
-    width: Math.min(1, cropWidth),
-    height: Math.min(1, cropHeight),
-  }
+  // Clamp origin so the crop box stays within [0, 1] bounds
+  const x = Math.max(0, Math.min(1 - cropWidth, centerX - cropWidth / 2))
+  const y = Math.max(0, Math.min(1 - cropHeight, centerY - cropHeight / 2))
+
+  return { x, y, width: cropWidth, height: cropHeight }
 }
 
 const crop = await suggestCrop("/path/to/landscape.jpg")
