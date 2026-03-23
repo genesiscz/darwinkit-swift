@@ -13,17 +13,8 @@ export { System } from "./namespaces/system.js"
 export { ICloud } from "./namespaces/icloud.js"
 export { CoreML } from "./namespaces/coreml.js"
 export { Translate } from "./namespaces/translate.js"
-<<<<<<< HEAD
-<<<<<<< HEAD
 export { Speech } from "./namespaces/speech.js"
-=======
-=======
 export { Sound } from "./namespaces/sound.js"
->>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
->>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
-=======
-export { Sound } from "./namespaces/sound.js"
->>>>>>> 80bdfd1 (fix: resolve remaining merge conflict markers)
 
 // All types
 export type {
@@ -112,16 +103,7 @@ export type {
   CoreMLContextualEmbedParams,
   CoreMLContextualEmbedBatchParams,
   CoreMLOkResult,
-<<<<<<< HEAD
-<<<<<<< HEAD
-// Translation
-=======
-<<<<<<< HEAD
   // Translation
->>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
-=======
-// Translation
->>>>>>> 80bdfd1 (fix: resolve remaining merge conflict markers)
   TranslateTextParams,
   TranslateTextResult,
   TranslateBatchParams,
@@ -133,9 +115,7 @@ export type {
   TranslateLanguageStatusResult,
   TranslatePrepareParams,
   TranslatePrepareResult,
-<<<<<<< HEAD
-<<<<<<< HEAD
-// Speech
+  // Speech
   SpeechTranscribeParams,
   SpeechTranscriptionSegment,
   SpeechTranscribeResult,
@@ -145,12 +125,7 @@ export type {
   SpeechUninstallLanguageParams,
   SpeechOkResult,
   SpeechCapabilitiesResult,
-=======
-=======
   // Sound Analysis
-=======
-// Sound Analysis
->>>>>>> 80bdfd1 (fix: resolve remaining merge conflict markers)
   SoundClassification,
   SoundClassifyParams,
   SoundTimeRange,
@@ -159,11 +134,6 @@ export type {
   SoundClassifyAtResult,
   SoundCategoriesResult,
   SoundAvailableResult,
-<<<<<<< HEAD
->>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)
->>>>>>> 2bc6dce (feat(sound): wire Sound namespace into TS SDK client and exports)
-=======
->>>>>>> 80bdfd1 (fix: resolve remaining merge conflict markers)
   // Notifications
   ReadyNotification,
   FilesChangedNotification,
