@@ -33,15 +33,24 @@ public final class TranslationHandler: MethodHandler {
     }
 
     public func capability(for method: String) -> MethodCapability {
-        MethodCapability(available: true, note: "Requires macOS 14.4+")
+        switch method {
+        case "translate.languages", "translate.language_status":
+            return MethodCapability(available: true, note: "Requires macOS 14.4+")
+        default:
+            return MethodCapability(available: true, note: "Requires macOS 26.0+")
+        }
     }
 
     // MARK: - Method Implementations
 
     private func handleText(_ request: JsonRpcRequest) throws -> Any {
         let text = try request.requireString("text")
-        let target = try request.requireString("target")
-        let source = request.string("source")
+        let target = request.string("to") ?? request.string("target")
+        let source = request.string("from") ?? request.string("source")
+
+        guard let target else {
+            throw JsonRpcError.invalidParams("Missing required param: to")
+        }
 
         guard !text.isEmpty else {
             throw JsonRpcError.invalidParams("text must not be empty")
@@ -52,8 +61,12 @@ public final class TranslationHandler: MethodHandler {
     }
 
     private func handleBatch(_ request: JsonRpcRequest) throws -> Any {
-        let target = try request.requireString("target")
-        let source = request.string("source")
+        let target = request.string("to") ?? request.string("target")
+        let source = request.string("from") ?? request.string("source")
+
+        guard let target else {
+            throw JsonRpcError.invalidParams("Missing required param: to")
+        }
 
         guard let texts = request.stringArray("texts"), !texts.isEmpty else {
             throw JsonRpcError.invalidParams("texts must be a non-empty array of strings")
@@ -73,26 +86,40 @@ public final class TranslationHandler: MethodHandler {
     }
 
     private func handleLanguageStatus(_ request: JsonRpcRequest) throws -> Any {
-        let source = try request.requireString("source")
-        let target = try request.requireString("target")
+        let source = request.string("from") ?? request.string("source")
+        let target = request.string("to") ?? request.string("target")
+
+        guard let source else {
+            throw JsonRpcError.invalidParams("Missing required param: from")
+        }
+        guard let target else {
+            throw JsonRpcError.invalidParams("Missing required param: to")
+        }
 
         let status = try provider.languagePairStatus(source: source, target: target)
         return [
             "status": status.rawValue,
-            "source": source,
-            "target": target,
+            "from": source,
+            "to": target,
         ] as [String: Any]
     }
 
     private func handlePrepare(_ request: JsonRpcRequest) throws -> Any {
-        let source = try request.requireString("source")
-        let target = try request.requireString("target")
+        let source = request.string("from") ?? request.string("source")
+        let target = request.string("to") ?? request.string("target")
+
+        guard let source else {
+            throw JsonRpcError.invalidParams("Missing required param: from")
+        }
+        guard let target else {
+            throw JsonRpcError.invalidParams("Missing required param: to")
+        }
 
         try provider.prepare(source: source, target: target)
         return [
             "ok": true,
-            "source": source,
-            "target": target,
+            "from": source,
+            "to": target,
         ] as [String: Any]
     }
 }

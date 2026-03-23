@@ -57,11 +57,11 @@ struct TranslationHandlerTests {
 
     // MARK: - translate.text
 
-    @Test("text returns translated text with source and target")
+    @Test("text returns translated text with from/to keys")
     func translateTextSuccess() throws {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.text", params: [
-            "text": "Hello world", "target": "es"
+            "text": "Hello world", "to": "es"
         ])
         let result = try handler.handle(request) as! [String: Any]
 
@@ -70,8 +70,19 @@ struct TranslationHandlerTests {
         #expect(result["target"] as? String == "es")
     }
 
-    @Test("text accepts explicit source language")
+    @Test("text accepts explicit from language")
     func translateTextWithSource() throws {
+        let handler = TranslationHandler(provider: MockTranslationProvider())
+        let request = makeRequest(method: "translate.text", params: [
+            "text": "Hello world", "from": "en", "to": "es"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["text"] as? String == "Hola mundo")
+    }
+
+    @Test("text falls back to source/target params for compatibility")
+    func translateTextLegacyParams() throws {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.text", params: [
             "text": "Hello world", "source": "en", "target": "es"
@@ -84,14 +95,14 @@ struct TranslationHandlerTests {
     @Test("text throws on missing text")
     func translateTextMissingText() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
-        let request = makeRequest(method: "translate.text", params: ["target": "es"])
+        let request = makeRequest(method: "translate.text", params: ["to": "es"])
 
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
         }
     }
 
-    @Test("text throws on missing target")
+    @Test("text throws on missing to")
     func translateTextMissingTarget() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.text", params: ["text": "Hello"])
@@ -119,7 +130,7 @@ struct TranslationHandlerTests {
     func translateBatchSuccess() throws {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.batch", params: [
-            "texts": ["Hello", "Goodbye"], "target": "es"
+            "texts": ["Hello", "Goodbye"], "to": "es"
         ])
         let result = try handler.handle(request) as! [String: Any]
         let translations = result["translations"] as! [[String: Any]]
@@ -129,11 +140,23 @@ struct TranslationHandlerTests {
         #expect(translations[1]["text"] as? String == "Adios")
     }
 
+    @Test("batch falls back to target param for compatibility")
+    func translateBatchLegacyParams() throws {
+        let handler = TranslationHandler(provider: MockTranslationProvider())
+        let request = makeRequest(method: "translate.batch", params: [
+            "texts": ["Hello", "Goodbye"], "target": "es"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+        let translations = result["translations"] as! [[String: Any]]
+
+        #expect(translations.count == 2)
+    }
+
     @Test("batch throws on empty texts array")
     func translateBatchEmpty() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.batch", params: [
-            "texts": [] as [String], "target": "es"
+            "texts": [] as [String], "to": "es"
         ])
 
         #expect(throws: JsonRpcError.self) {
@@ -144,14 +167,14 @@ struct TranslationHandlerTests {
     @Test("batch throws on missing texts")
     func translateBatchMissingTexts() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
-        let request = makeRequest(method: "translate.batch", params: ["target": "es"])
+        let request = makeRequest(method: "translate.batch", params: ["to": "es"])
 
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
         }
     }
 
-    @Test("batch throws on missing target")
+    @Test("batch throws on missing to")
     func translateBatchMissingTarget() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.batch", params: [
@@ -179,8 +202,21 @@ struct TranslationHandlerTests {
 
     // MARK: - translate.language_status
 
-    @Test("language_status returns status for language pair")
+    @Test("language_status returns status for language pair using from/to")
     func languageStatusSuccess() throws {
+        let handler = TranslationHandler(provider: MockTranslationProvider())
+        let request = makeRequest(method: "translate.language_status", params: [
+            "from": "en", "to": "es"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["status"] as? String == "installed")
+        #expect(result["from"] as? String == "en")
+        #expect(result["to"] as? String == "es")
+    }
+
+    @Test("language_status falls back to source/target for compatibility")
+    func languageStatusLegacyParams() throws {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.language_status", params: [
             "source": "en", "target": "es"
@@ -188,24 +224,24 @@ struct TranslationHandlerTests {
         let result = try handler.handle(request) as! [String: Any]
 
         #expect(result["status"] as? String == "installed")
-        #expect(result["source"] as? String == "en")
-        #expect(result["target"] as? String == "es")
+        #expect(result["from"] as? String == "en")
+        #expect(result["to"] as? String == "es")
     }
 
-    @Test("language_status throws on missing source")
+    @Test("language_status throws on missing from")
     func languageStatusMissingSource() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
-        let request = makeRequest(method: "translate.language_status", params: ["target": "es"])
+        let request = makeRequest(method: "translate.language_status", params: ["to": "es"])
 
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
         }
     }
 
-    @Test("language_status throws on missing target")
+    @Test("language_status throws on missing to")
     func languageStatusMissingTarget() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
-        let request = makeRequest(method: "translate.language_status", params: ["source": "en"])
+        let request = makeRequest(method: "translate.language_status", params: ["from": "en"])
 
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
@@ -214,8 +250,21 @@ struct TranslationHandlerTests {
 
     // MARK: - translate.prepare
 
-    @Test("prepare returns ok for valid pair")
+    @Test("prepare returns ok for valid pair using from/to")
     func prepareSuccess() throws {
+        let handler = TranslationHandler(provider: MockTranslationProvider())
+        let request = makeRequest(method: "translate.prepare", params: [
+            "from": "en", "to": "es"
+        ])
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["ok"] as? Bool == true)
+        #expect(result["from"] as? String == "en")
+        #expect(result["to"] as? String == "es")
+    }
+
+    @Test("prepare falls back to source/target for compatibility")
+    func prepareLegacyParams() throws {
         let handler = TranslationHandler(provider: MockTranslationProvider())
         let request = makeRequest(method: "translate.prepare", params: [
             "source": "en", "target": "es"
@@ -223,24 +272,24 @@ struct TranslationHandlerTests {
         let result = try handler.handle(request) as! [String: Any]
 
         #expect(result["ok"] as? Bool == true)
-        #expect(result["source"] as? String == "en")
-        #expect(result["target"] as? String == "es")
+        #expect(result["from"] as? String == "en")
+        #expect(result["to"] as? String == "es")
     }
 
-    @Test("prepare throws on missing source")
+    @Test("prepare throws on missing from")
     func prepareMissingSource() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
-        let request = makeRequest(method: "translate.prepare", params: ["target": "es"])
+        let request = makeRequest(method: "translate.prepare", params: ["to": "es"])
 
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
         }
     }
 
-    @Test("prepare throws on missing target")
+    @Test("prepare throws on missing to")
     func prepareMissingTarget() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
-        let request = makeRequest(method: "translate.prepare", params: ["source": "en"])
+        let request = makeRequest(method: "translate.prepare", params: ["from": "en"])
 
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
@@ -260,7 +309,7 @@ struct TranslationHandlerTests {
         #expect(Set(handler.methods) == expected)
     }
 
-    @Test("handler reports capabilities for all methods")
+    @Test("handler reports differentiated capabilities per method")
     func capabilities() {
         let handler = TranslationHandler(provider: MockTranslationProvider())
 
@@ -268,6 +317,23 @@ struct TranslationHandlerTests {
             let cap = handler.capability(for: method)
             #expect(cap.available == true)
         }
+
+        // translate.languages and translate.language_status require macOS 14.4+
+        let langCap = handler.capability(for: "translate.languages")
+        #expect(langCap.note == "Requires macOS 14.4+")
+
+        let statusCap = handler.capability(for: "translate.language_status")
+        #expect(statusCap.note == "Requires macOS 14.4+")
+
+        // translate.text, translate.batch, translate.prepare require macOS 26.0+
+        let textCap = handler.capability(for: "translate.text")
+        #expect(textCap.note == "Requires macOS 26.0+")
+
+        let batchCap = handler.capability(for: "translate.batch")
+        #expect(batchCap.note == "Requires macOS 26.0+")
+
+        let prepareCap = handler.capability(for: "translate.prepare")
+        #expect(prepareCap.note == "Requires macOS 26.0+")
     }
 
     // MARK: - Provider error propagation
@@ -278,7 +344,7 @@ struct TranslationHandlerTests {
         mock.shouldThrow = .frameworkUnavailable("Translation not available")
         let handler = TranslationHandler(provider: mock)
         let request = makeRequest(method: "translate.text", params: [
-            "text": "Hello", "target": "es"
+            "text": "Hello", "to": "es"
         ])
 
         #expect(throws: JsonRpcError.self) {
