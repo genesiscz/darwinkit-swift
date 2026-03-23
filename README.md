@@ -46,6 +46,45 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 | `icloud.ensure_dir` | Create iCloud directory | FileManager |
 | `icloud.start_monitoring` | Watch iCloud for file changes | NSMetadataQuery |
 | `icloud.stop_monitoring` | Stop watching iCloud | NSMetadataQuery |
+| `vision.classify` | Image classification (1000+ categories) | VNClassifyImageRequest |
+| `vision.feature_print` | Image feature vector for similarity | VNGenerateImageFeaturePrintRequest |
+| `vision.similarity` | Compare two images (distance score) | VNFeaturePrintObservation |
+| `vision.detect_faces` | Face detection with optional landmarks | VNDetectFaceRectanglesRequest |
+| `vision.detect_barcodes` | Barcode/QR code reading | VNDetectBarcodesRequest |
+| `vision.saliency` | Attention/objectness saliency maps | VNGenerateSaliencyImageRequest |
+| `translate.text` | Translate text between languages | Translation |
+| `translate.batch` | Batch translate multiple texts | Translation |
+| `translate.languages` | List supported languages | Translation |
+| `translate.language_status` | Check language pair availability | Translation |
+| `translate.prepare` | Download language models | Translation |
+| `speech.transcribe` | Speech-to-text from audio file | SpeechAnalyzer / SFSpeechRecognizer |
+| `speech.languages` | List supported languages | SpeechTranscriber |
+| `speech.installed_languages` | List downloaded language models | SpeechTranscriber |
+| `speech.install_language` | Download language model | AssetInventory |
+| `speech.uninstall_language` | Remove language model | AssetInventory |
+| `speech.capabilities` | Check speech recognition availability | Speech |
+| `sound.classify` | Classify sounds in audio file (300+ categories) | SoundAnalysis |
+| `sound.classify_at` | Classify sounds at specific time range | SoundAnalysis |
+| `sound.categories` | List all sound categories | SoundAnalysis |
+| `sound.available` | Check SoundAnalysis availability | SoundAnalysis |
+| `llm.generate` | Generate text with on-device LLM | FoundationModels |
+| `llm.generate_structured` | Generate structured JSON output | FoundationModels |
+| `llm.stream` | Stream text generation | FoundationModels |
+| `llm.session_create` | Create conversation session | FoundationModels |
+| `llm.session_respond` | Send message to session | FoundationModels |
+| `llm.session_close` | Close conversation session | FoundationModels |
+| `llm.available` | Check Apple Intelligence availability | FoundationModels |
+| `contacts.authorized` | Check/request contacts access | Contacts |
+| `contacts.list` | List contacts | Contacts |
+| `contacts.get` | Get contact by ID | Contacts |
+| `contacts.search` | Search contacts | Contacts |
+| `calendar.authorized` | Check/request calendar access | EventKit |
+| `calendar.calendars` | List calendars | EventKit |
+| `calendar.events` | Fetch events in date range | EventKit |
+| `calendar.event` | Get event by ID | EventKit |
+| `reminders.authorized` | Check/request reminders access | EventKit |
+| `reminders.lists` | List reminder lists | EventKit |
+| `reminders.items` | Fetch reminders | EventKit |
 | `system.capabilities` | Query available methods + OS info | — |
 
 ## Requirements
@@ -53,15 +92,12 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 - macOS 14+ (Sonoma)
 - CoreML contextual embeddings require macOS 14+
 - Custom model embedding via swift-embeddings requires macOS 15+
+- Speech recognition via SpeechAnalyzer requires macOS 26+ (falls back to SFSpeechRecognizer)
+- Translation requires macOS 15+ (TranslationSession requires macOS 26+)
+- Foundation Models (LLM) requires macOS 26+ with Apple Intelligence enabled
+- Sound Analysis requires macOS 14+
 
 ## Install
-
-### Homebrew (recommended)
-
-```bash
-brew tap genesiscz/darwinkit-swift
-brew install darwinkit
-```
 
 ### GitHub Releases
 
@@ -112,6 +148,30 @@ if (available) await dk.auth.authenticate({ reason: "Confirm identity" })
 const { available: icloudOk } = await dk.icloud.status({})
 await dk.icloud.write({ path: "notes/todo.txt", content: "Buy milk" })
 const { content } = await dk.icloud.read({ path: "notes/todo.txt" })
+
+// Speech — transcribe audio files
+const transcription = await dk.speech.transcribe({ path: "/tmp/meeting.m4a", language: "en-US" })
+console.log(transcription.text)
+
+// Translation — on-device, offline
+const translated = await dk.translate.text({ text: "Hello world", to: "es" })
+console.log(translated.text) // "Hola mundo"
+
+// Vision — classify images, detect faces, read barcodes
+const classes = await dk.vision.classify({ path: "/tmp/photo.jpg" })
+const faces = await dk.vision.detectFaces({ path: "/tmp/photo.jpg", landmarks: true })
+const barcodes = await dk.vision.detectBarcodes({ path: "/tmp/qr.png" })
+
+// Sound — classify audio (300+ categories)
+const sounds = await dk.sound.classify({ path: "/tmp/audio.wav" })
+
+// LLM — on-device text generation (macOS 26+, Apple Intelligence)
+const response = await dk.llm.generate({ prompt: "Summarize this meeting" })
+
+// Contacts, Calendar, Reminders — read-only access
+const contacts = await dk.contacts.list({ limit: 10 })
+const events = await dk.calendar.events({ start_date: "2026-03-23", end_date: "2026-03-30" })
+const reminders = await dk.reminders.items({ filter: "incomplete" })
 
 dk.close()
 ```
@@ -1063,9 +1123,9 @@ swift build -c release --arch arm64 --arch x86_64
 
 - **v0.1.0** — NLP (embeddings, sentiment, tagging, language detection) + Vision (OCR) + Auth (biometrics) + iCloud (file ops) + TypeScript SDK
 - **v0.2.0** — Type improvements, npm binary bundling, release tooling
-- **v0.3.0** (current) — CoreML namespace: GPU/Neural Engine text embedding, NLContextualEmbedding, custom model loading via swift-embeddings
+- **v0.3.0** — CoreML namespace: GPU/Neural Engine text embedding, NLContextualEmbedding, custom model loading via swift-embeddings
 - **v0.4.0** — `speech.*` via SpeechAnalyzer (macOS 26+), `translate.*` via Translation framework, `vision.*` extensions (image classification, face detection, barcode reading, image similarity)
-- **v0.5.0** — `llm.*` via Apple Foundation Models (on-device ~3B LLM, structured output, tool calling, streaming), `sound.*` via SoundAnalysis (300+ audio categories), `contacts.*` / `calendar.*` / `reminders.*` read-only access via Contacts + EventKit
+- **v0.5.0** (current) — `llm.*` via Apple Foundation Models (on-device ~3B LLM, structured output, streaming), `sound.*` via SoundAnalysis (300+ audio categories), `contacts.*` / `calendar.*` / `reminders.*` read-only access via Contacts + EventKit
 
 ## License
 
