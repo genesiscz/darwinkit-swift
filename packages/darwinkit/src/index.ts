@@ -14,6 +14,7 @@ export { ICloud } from "./namespaces/icloud.js"
 export { CoreML } from "./namespaces/coreml.js"
 export { Translate } from "./namespaces/translate.js"
 export { Speech } from "./namespaces/speech.js"
+export { Sound } from "./namespaces/sound.js"
 
 // All types
 export type {
@@ -102,7 +103,7 @@ export type {
   CoreMLContextualEmbedParams,
   CoreMLContextualEmbedBatchParams,
   CoreMLOkResult,
-// Translation
+  // Translation
   TranslateTextParams,
   TranslateTextResult,
   TranslateBatchParams,
@@ -114,7 +115,7 @@ export type {
   TranslateLanguageStatusResult,
   TranslatePrepareParams,
   TranslatePrepareResult,
-// Speech
+  // Speech
   SpeechTranscribeParams,
   SpeechTranscriptionSegment,
   SpeechTranscribeResult,
@@ -124,6 +125,15 @@ export type {
   SpeechUninstallLanguageParams,
   SpeechOkResult,
   SpeechCapabilitiesResult,
+  // Sound Analysis
+  SoundClassification,
+  SoundClassifyParams,
+  SoundTimeRange,
+  SoundClassifyResult,
+  SoundClassifyAtParams,
+  SoundClassifyAtResult,
+  SoundCategoriesResult,
+  SoundAvailableResult,
   // Notifications
   ReadyNotification,
   FilesChangedNotification,

@@ -457,6 +457,47 @@ export interface SpeechOkResult {
 export interface SpeechCapabilitiesResult {
   available: boolean
   reason?: string
+// Sound Analysis
+// ---------------------------------------------------------------------------
+
+export interface SoundClassification {
+  identifier: string
+  confidence: number
+}
+
+export interface SoundClassifyParams {
+  path: string
+  top_n?: number // default: 5
+}
+
+export interface SoundTimeRange {
+  start: number
+  duration: number
+}
+
+export interface SoundClassifyResult {
+  classifications: SoundClassification[]
+  time_range?: SoundTimeRange
+}
+
+export interface SoundClassifyAtParams {
+  path: string
+  start: number
+  duration: number
+  top_n?: number // default: 5
+}
+
+export interface SoundClassifyAtResult {
+  classifications: SoundClassification[]
+  time_range: SoundTimeRange // always present for classify_at
+}
+
+export interface SoundCategoriesResult {
+  categories: string[]
+}
+
+export interface SoundAvailableResult {
+  available: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -605,6 +646,21 @@ export interface MethodMap {
   "speech.capabilities": {
     params: Record<string, never>
     result: SpeechCapabilitiesResult
+"sound.classify": {
+    params: SoundClassifyParams
+    result: SoundClassifyResult
+  }
+  "sound.classify_at": {
+    params: SoundClassifyAtParams
+    result: SoundClassifyAtResult
+  }
+  "sound.categories": {
+    params: Record<string, never>
+    result: SoundCategoriesResult
+  }
+  "sound.available": {
+    params: Record<string, never>
+    result: SoundAvailableResult
   }
 }
 
