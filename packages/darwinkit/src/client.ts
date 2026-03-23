@@ -16,6 +16,7 @@ import { System } from "./namespaces/system.js"
 import { ICloud } from "./namespaces/icloud.js"
 import { CoreML } from "./namespaces/coreml.js"
 import { Translate } from "./namespaces/translate.js"
+import { Speech } from "./namespaces/speech.js"
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -88,7 +89,8 @@ export class DarwinKit implements DarwinKitClient {
   readonly system: System
   readonly icloud: ICloud
   readonly coreml: CoreML
-  readonly translate: Translate
+readonly translate: Translate
+readonly speech: Speech
 
   private transport = new Transport()
   private pending = new Map<string, PendingRequest>()
@@ -131,7 +133,8 @@ export class DarwinKit implements DarwinKitClient {
     this.system = new System(this)
     this.icloud = new ICloud(this)
     this.coreml = new CoreML(this)
-    this.translate = new Translate(this)
+this.translate = new Translate(this)
+this.speech = new Speech(this)
   }
 
   get connected(): boolean {

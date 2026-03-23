@@ -13,6 +13,7 @@ export { System } from "./namespaces/system.js"
 export { ICloud } from "./namespaces/icloud.js"
 export { CoreML } from "./namespaces/coreml.js"
 export { Translate } from "./namespaces/translate.js"
+export { Speech } from "./namespaces/speech.js"
 
 // All types
 export type {
@@ -101,7 +102,7 @@ export type {
   CoreMLContextualEmbedParams,
   CoreMLContextualEmbedBatchParams,
   CoreMLOkResult,
-  // Translation
+// Translation
   TranslateTextParams,
   TranslateTextResult,
   TranslateBatchParams,
@@ -113,6 +114,16 @@ export type {
   TranslateLanguageStatusResult,
   TranslatePrepareParams,
   TranslatePrepareResult,
+// Speech
+  SpeechTranscribeParams,
+  SpeechTranscriptionSegment,
+  SpeechTranscribeResult,
+  SpeechLanguageInfo,
+  SpeechLanguagesResult,
+  SpeechInstallLanguageParams,
+  SpeechUninstallLanguageParams,
+  SpeechOkResult,
+  SpeechCapabilitiesResult,
   // Notifications
   ReadyNotification,
   FilesChangedNotification,
