@@ -487,6 +487,11 @@ export interface SoundClassifyAtParams {
   top_n?: number // default: 5
 }
 
+export interface SoundClassifyAtResult {
+  classifications: SoundClassification[]
+  time_range: SoundTimeRange // always present for classify_at
+}
+
 export interface SoundCategoriesResult {
   categories: string[]
 }
@@ -647,7 +652,7 @@ export interface MethodMap {
   }
   "sound.classify_at": {
     params: SoundClassifyAtParams
-    result: SoundClassifyResult
+    result: SoundClassifyAtResult
   }
   "sound.categories": {
     params: Record<string, never>

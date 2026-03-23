@@ -33,7 +33,7 @@ public final class SoundHandler: MethodHandler {
         case "sound.classify", "sound.classify_at", "sound.categories":
             return MethodCapability(
                 available: available,
-                note: available ? "Requires macOS 12+" : "SoundAnalysis unavailable (requires macOS 12+)"
+                note: available ? "Requires macOS 14+" : "SoundAnalysis unavailable (requires macOS 14+)"
             )
         case "sound.available":
             return MethodCapability(available: true)

@@ -145,6 +145,7 @@ export type {
   SoundTimeRange,
   SoundClassifyResult,
   SoundClassifyAtParams,
+  SoundClassifyAtResult,
   SoundCategoriesResult,
   SoundAvailableResult,
 >>>>>>> 354a60f (feat(sound): wire Sound namespace into TS SDK client and exports)

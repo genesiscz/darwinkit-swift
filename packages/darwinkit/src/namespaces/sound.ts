@@ -6,6 +6,7 @@ import type {
   SoundClassifyParams,
   SoundClassifyResult,
   SoundClassifyAtParams,
+  SoundClassifyAtResult,
   SoundCategoriesResult,
   SoundAvailableResult,
 } from "../types.js"
@@ -48,7 +49,7 @@ export class Sound {
     (
       params: SoundClassifyAtParams,
       options?: { timeout?: number },
-    ): Promise<SoundClassifyResult>
+    ): Promise<SoundClassifyAtResult>
     prepare(
       params: SoundClassifyAtParams,
     ): PreparedCall<"sound.classify_at">

@@ -127,8 +127,14 @@ private final class ResultsObserver: NSObject, SNResultsObserving {
         semaphore.signal()
     }
 
-    func waitForCompletion() {
-        semaphore.wait()
+    func waitForCompletion(timeout: TimeInterval = 30) throws {
+        let result = semaphore.wait(timeout: .now() + timeout)
+        if result == .timedOut {
+            throw JsonRpcError.internalError("Sound analysis timed out after \(Int(timeout))s")
+        }
+        if let error = self.error {
+            throw JsonRpcError.internalError("Sound analysis failed: \(error.localizedDescription)")
+        }
     }
 }
 
@@ -151,11 +157,7 @@ public final class AppleSoundProvider: SoundProvider {
 
         try analyzer.add(request, withObserver: observer)
         analyzer.analyze()
-        observer.waitForCompletion()
-
-        if let error = observer.error {
-            throw JsonRpcError.internalError("Sound classification failed: \(error.localizedDescription)")
-        }
+        try observer.waitForCompletion()
 
         return SoundClassifyResult(classifications: observer.classifications)
     }
@@ -186,11 +188,7 @@ public final class AppleSoundProvider: SoundProvider {
 
         try analyzer.add(request, withObserver: observer)
         analyzer.analyze()
-        observer.waitForCompletion()
-
-        if let error = observer.error {
-            throw JsonRpcError.internalError("Sound classification failed: \(error.localizedDescription)")
-        }
+        try observer.waitForCompletion()
 
         return SoundClassifyResult(
             classifications: observer.classifications,
@@ -204,8 +202,8 @@ public final class AppleSoundProvider: SoundProvider {
     }
 
     public func isAvailable() -> Bool {
-        // SoundAnalysis with version1 classifier requires macOS 12+
-        if #available(macOS 12, *) {
+        // SoundAnalysis with version1 classifier requires macOS 14+
+        if #available(macOS 14, *) {
             return true
         }
         return false
