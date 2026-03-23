@@ -175,7 +175,7 @@ public final class AppleTranslationProvider: TranslationProvider {
 
     @available(macOS 26.0, *)
     private func translateImpl(text: String, source: String?, target: String) throws -> TranslationResult {
-        let resolvedSource = source ?? detectLanguage(text)
+        let resolvedSource = try source ?? detectLanguage(text)
         let sourceLang = Locale.Language(identifier: resolvedSource)
         let targetLang = Locale.Language(identifier: target)
 
@@ -212,7 +212,7 @@ public final class AppleTranslationProvider: TranslationProvider {
 
     @available(macOS 26.0, *)
     private func translateBatchImpl(texts: [String], source: String?, target: String) throws -> [TranslationResult] {
-        let resolvedSource = source ?? detectLanguage(texts.first ?? "")
+        let resolvedSource = try source ?? detectLanguage(texts.first ?? "")
         let sourceLang = Locale.Language(identifier: resolvedSource)
         let targetLang = Locale.Language(identifier: target)
 
@@ -291,10 +291,13 @@ public final class AppleTranslationProvider: TranslationProvider {
     // MARK: - Private Helpers
 
     /// Auto-detect language using NaturalLanguage framework
-    private func detectLanguage(_ text: String) -> String {
+    private func detectLanguage(_ text: String) throws -> String {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
-        return recognizer.dominantLanguage?.rawValue ?? "en"
+        guard let language = recognizer.dominantLanguage?.rawValue else {
+            throw JsonRpcError.invalidParams("Unable to detect source language; provide 'from' explicitly")
+        }
+        return language
     }
 }
 
