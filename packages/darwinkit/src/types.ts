@@ -415,6 +415,9 @@ export interface TranslatePrepareResult {
   ok: true
   source: string
   target: string
+}
+
+// ---------------------------------------------------------------------------
 // Speech
 // ---------------------------------------------------------------------------
 
@@ -457,6 +460,9 @@ export interface SpeechOkResult {
 export interface SpeechCapabilitiesResult {
   available: boolean
   reason?: string
+}
+
+// ---------------------------------------------------------------------------
 // Sound Analysis
 // ---------------------------------------------------------------------------
 
@@ -498,6 +504,9 @@ export interface SoundCategoriesResult {
 
 export interface SoundAvailableResult {
   available: boolean
+}
+
+// ---------------------------------------------------------------------------
 // LLM (Foundation Models)
 // ---------------------------------------------------------------------------
 
@@ -557,6 +566,9 @@ export interface LLMOkResult {
 export interface LLMChunkNotification {
   request_id: string
   chunk: string
+}
+
+// ---------------------------------------------------------------------------
 // Contacts
 // ---------------------------------------------------------------------------
 
@@ -815,7 +827,8 @@ export interface MethodMap {
   "translate.prepare": {
     params: TranslatePrepareParams
     result: TranslatePrepareResult
-"speech.transcribe": {
+  }
+  "speech.transcribe": {
     params: SpeechTranscribeParams
     result: SpeechTranscribeResult
   }
@@ -838,7 +851,8 @@ export interface MethodMap {
   "speech.capabilities": {
     params: Record<string, never>
     result: SpeechCapabilitiesResult
-"sound.classify": {
+  }
+  "sound.classify": {
     params: SoundClassifyParams
     result: SoundClassifyResult
   }
@@ -853,6 +867,7 @@ export interface MethodMap {
   "sound.available": {
     params: Record<string, never>
     result: SoundAvailableResult
+  }
   "llm.generate": {
     params: LLMGenerateParams
     result: LLMGenerateResult
@@ -880,6 +895,7 @@ export interface MethodMap {
   "llm.available": {
     params: Record<string, never>
     result: LLMAvailableResult
+  }
   // Contacts
   "contacts.authorized": {
     params: Record<string, never>
