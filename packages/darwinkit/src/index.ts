@@ -16,6 +16,9 @@ export { Translate } from "./namespaces/translate.js"
 export { Speech } from "./namespaces/speech.js"
 export { Sound } from "./namespaces/sound.js"
 export { LLM } from "./namespaces/llm.js"
+export { Contacts } from "./namespaces/contacts.js"
+export { Calendar } from "./namespaces/calendar.js"
+export { Reminders } from "./namespaces/reminders.js"
 
 // All types
 export type {
@@ -147,6 +150,32 @@ export type {
   LLMAvailableResult,
   LLMOkResult,
   LLMChunkNotification,
+  // Contacts
+  ContactEmailAddress,
+  ContactPhoneNumber,
+  ContactPostalAddress,
+  ContactInfo,
+  ContactsAuthorizedResult,
+  ContactsListParams,
+  ContactsListResult,
+  ContactsGetParams,
+  ContactsSearchParams,
+  ContactsSearchResult,
+  // Calendar
+  CalendarInfo,
+  CalendarEventInfo,
+  CalendarAuthorizedResult,
+  CalendarCalendarsResult,
+  CalendarEventsParams,
+  CalendarEventsResult,
+  CalendarEventParams,
+  // Reminders
+  ReminderListInfo,
+  ReminderInfo,
+  RemindersAuthorizedResult,
+  RemindersListsResult,
+  RemindersItemsParams,
+  RemindersItemsResult,
   // Notifications
   ReadyNotification,
   FilesChangedNotification,

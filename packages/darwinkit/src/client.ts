@@ -19,6 +19,9 @@ import { Translate } from "./namespaces/translate.js"
 import { Speech } from "./namespaces/speech.js"
 import { Sound } from "./namespaces/sound.js"
 import { LLM } from "./namespaces/llm.js"
+import { Contacts } from "./namespaces/contacts.js"
+import { Calendar } from "./namespaces/calendar.js"
+import { Reminders } from "./namespaces/reminders.js"
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -95,6 +98,9 @@ export class DarwinKit implements DarwinKitClient {
   readonly speech: Speech
   readonly sound: Sound
   readonly llm: LLM
+  readonly contacts: Contacts
+  readonly calendar: Calendar
+  readonly reminders: Reminders
 
   private transport = new Transport()
   private pending = new Map<string, PendingRequest>()
@@ -141,6 +147,9 @@ export class DarwinKit implements DarwinKitClient {
     this.speech = new Speech(this)
     this.sound = new Sound(this)
     this.llm = new LLM(this)
+    this.contacts = new Contacts(this)
+    this.calendar = new Calendar(this)
+    this.reminders = new Reminders(this)
   }
 
   get connected(): boolean {

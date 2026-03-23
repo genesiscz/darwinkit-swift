@@ -557,6 +557,139 @@ export interface LLMOkResult {
 export interface LLMChunkNotification {
   request_id: string
   chunk: string
+// Contacts
+// ---------------------------------------------------------------------------
+
+export interface ContactEmailAddress {
+  label: string
+  value: string
+}
+export interface ContactPhoneNumber {
+  label: string
+  value: string
+}
+export interface ContactPostalAddress {
+  label: string
+  street: string
+  city: string
+  state: string
+  postal_code: string
+  country: string
+}
+
+export interface ContactInfo {
+  identifier: string
+  given_name: string
+  family_name: string
+  organization_name: string
+  email_addresses: ContactEmailAddress[]
+  phone_numbers: ContactPhoneNumber[]
+  postal_addresses: ContactPostalAddress[]
+  birthday?: string
+  thumbnail_image_base64?: string
+}
+
+export interface ContactsAuthorizedResult {
+  status: "authorized" | "denied" | "restricted" | "notDetermined"
+  authorized: boolean
+}
+export interface ContactsListParams {
+  limit?: number
+}
+export interface ContactsListResult {
+  contacts: ContactInfo[]
+}
+export interface ContactsGetParams {
+  identifier: string
+}
+export interface ContactsSearchParams {
+  query: string
+  limit?: number
+}
+export interface ContactsSearchResult {
+  contacts: ContactInfo[]
+}
+
+// ---------------------------------------------------------------------------
+// Calendar
+// ---------------------------------------------------------------------------
+
+export interface CalendarInfo {
+  identifier: string
+  title: string
+  type: "local" | "calDAV" | "exchange" | "subscription" | "birthday" | "unknown"
+  color: string
+  is_immutable: boolean
+  allows_content_modifications: boolean
+}
+
+export interface CalendarEventInfo {
+  identifier: string
+  title: string
+  start_date: string
+  end_date: string
+  is_all_day: boolean
+  location?: string
+  notes?: string
+  calendar_identifier: string
+  calendar_title: string
+  url?: string
+}
+
+export interface CalendarAuthorizedResult {
+  status: "fullAccess" | "writeOnly" | "denied" | "restricted" | "notDetermined"
+  authorized: boolean
+}
+export interface CalendarCalendarsResult {
+  calendars: CalendarInfo[]
+}
+export interface CalendarEventsParams {
+  start_date: string
+  end_date: string
+  calendar_identifiers?: string[]
+}
+export interface CalendarEventsResult {
+  events: CalendarEventInfo[]
+}
+export interface CalendarEventParams {
+  identifier: string
+}
+
+// ---------------------------------------------------------------------------
+// Reminders
+// ---------------------------------------------------------------------------
+
+export interface ReminderListInfo {
+  identifier: string
+  title: string
+  color: string
+}
+
+export interface ReminderInfo {
+  identifier: string
+  title: string
+  is_completed: boolean
+  completion_date?: string
+  due_date?: string
+  priority: number
+  notes?: string
+  list_identifier: string
+  list_title: string
+}
+
+export interface RemindersAuthorizedResult {
+  status: "fullAccess" | "denied" | "restricted" | "notDetermined"
+  authorized: boolean
+}
+export interface RemindersListsResult {
+  lists: ReminderListInfo[]
+}
+export interface RemindersItemsParams {
+  filter?: "completed" | "incomplete"
+  list_identifiers?: string[]
+}
+export interface RemindersItemsResult {
+  reminders: ReminderInfo[]
 }
 
 // ---------------------------------------------------------------------------
@@ -747,6 +880,52 @@ export interface MethodMap {
   "llm.available": {
     params: Record<string, never>
     result: LLMAvailableResult
+  // Contacts
+  "contacts.authorized": {
+    params: Record<string, never>
+    result: ContactsAuthorizedResult
+  }
+  "contacts.list": {
+    params: ContactsListParams
+    result: ContactsListResult
+  }
+  "contacts.get": {
+    params: ContactsGetParams
+    result: ContactInfo
+  }
+  "contacts.search": {
+    params: ContactsSearchParams
+    result: ContactsSearchResult
+  }
+  // Calendar
+  "calendar.authorized": {
+    params: Record<string, never>
+    result: CalendarAuthorizedResult
+  }
+  "calendar.calendars": {
+    params: Record<string, never>
+    result: CalendarCalendarsResult
+  }
+  "calendar.events": {
+    params: CalendarEventsParams
+    result: CalendarEventsResult
+  }
+  "calendar.event": {
+    params: CalendarEventParams
+    result: CalendarEventInfo
+  }
+  // Reminders
+  "reminders.authorized": {
+    params: Record<string, never>
+    result: RemindersAuthorizedResult
+  }
+  "reminders.lists": {
+    params: Record<string, never>
+    result: RemindersListsResult
+  }
+  "reminders.items": {
+    params: RemindersItemsParams
+    result: RemindersItemsResult
   }
 }
 
