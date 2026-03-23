@@ -62,6 +62,7 @@ func buildServerWithRouter() -> JsonRpcServer {
     router.register(CoreMLHandler(provider: AppleCoreMLProvider()))
     router.register(CloudHandler(notificationSink: server))
     router.register(AuthHandler())
+    router.register(TranslationHandler(provider: makeTranslationProvider()))
 
     return server
 }
@@ -75,5 +76,36 @@ func buildRouter() -> MethodRouter {
     router.register(CoreMLHandler(provider: AppleCoreMLProvider()))
     router.register(CloudHandler())
     router.register(AuthHandler())
+    router.register(TranslationHandler(provider: makeTranslationProvider()))
     return router
+}
+
+/// Create a TranslationProvider appropriate for the current OS version.
+/// The handler is always registered so methods appear in system.capabilities
+/// (even as unavailable); the provider itself throws `.osVersionTooOld` at runtime.
+private func makeTranslationProvider() -> TranslationProvider {
+    if #available(macOS 15.0, *) {
+        return AppleTranslationProvider()
+    } else {
+        return UnavailableTranslationProvider()
+    }
+}
+
+/// Stub provider for macOS versions that lack the Translation framework entirely.
+private struct UnavailableTranslationProvider: TranslationProvider {
+    func translate(text: String, source: String?, target: String) throws -> TranslationResult {
+        throw JsonRpcError.osVersionTooOld("Translation requires macOS 15.0+")
+    }
+    func translateBatch(texts: [String], source: String?, target: String) throws -> [TranslationResult] {
+        throw JsonRpcError.osVersionTooOld("Translation requires macOS 15.0+")
+    }
+    func supportedLanguages() throws -> [TranslationLanguageInfo] {
+        throw JsonRpcError.osVersionTooOld("Translation requires macOS 15.0+")
+    }
+    func languagePairStatus(source: String, target: String) throws -> TranslationPairStatus {
+        throw JsonRpcError.osVersionTooOld("Translation requires macOS 15.0+")
+    }
+    func prepare(source: String, target: String) throws {
+        throw JsonRpcError.osVersionTooOld("Translation requires macOS 15.0+")
+    }
 }

@@ -365,6 +365,59 @@ export interface CoreMLOkResult {
 }
 
 // ---------------------------------------------------------------------------
+// Translation
+// ---------------------------------------------------------------------------
+
+export interface TranslateTextParams {
+  text: string
+  source?: string // omit for auto-detect
+  target: string
+}
+export interface TranslateTextResult {
+  text: string
+  source: string
+  target: string
+}
+
+export interface TranslateBatchParams {
+  texts: string[]
+  source?: string // omit for auto-detect
+  target: string
+}
+export interface TranslateBatchResult {
+  translations: TranslateTextResult[]
+}
+
+export interface TranslateLanguagesResult {
+  languages: TranslateLanguageInfo[]
+}
+export interface TranslateLanguageInfo {
+  locale: string
+  name: string
+}
+
+export interface TranslateLanguageStatusParams {
+  source: string
+  target: string
+}
+export type TranslateLanguageStatus = "installed" | "supported" | "unsupported"
+export interface TranslateLanguageStatusResult {
+  status: TranslateLanguageStatus
+  source: string
+  target: string
+}
+
+export interface TranslatePrepareParams {
+  source: string
+  target: string
+}
+export interface TranslatePrepareResult {
+  ok: true
+  source: string
+  target: string
+}
+
+// ---------------------------------------------------------------------------
 // MethodMap
 // ---------------------------------------------------------------------------
 
@@ -467,6 +520,26 @@ export interface MethodMap {
   "coreml.embed_contextual_batch": {
     params: CoreMLContextualEmbedBatchParams
     result: CoreMLEmbedBatchResult
+  }
+  "translate.text": {
+    params: TranslateTextParams
+    result: TranslateTextResult
+  }
+  "translate.batch": {
+    params: TranslateBatchParams
+    result: TranslateBatchResult
+  }
+  "translate.languages": {
+    params: Record<string, never>
+    result: TranslateLanguagesResult
+  }
+  "translate.language_status": {
+    params: TranslateLanguageStatusParams
+    result: TranslateLanguageStatusResult
+  }
+  "translate.prepare": {
+    params: TranslatePrepareParams
+    result: TranslatePrepareResult
   }
 }
 
