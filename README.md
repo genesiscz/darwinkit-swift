@@ -1,6 +1,6 @@
 # DarwinKit
 
-**Use Apple's on-device ML from any language.** DarwinKit is a Swift CLI that exposes Apple's NaturalLanguage and Vision frameworks via JSON-RPC over stdio. Spawn it as a subprocess, send JSON, get results. No Swift knowledge required.
+**Use Apple's on-device ML from any language.** DarwinKit is a Swift CLI that exposes Apple's NaturalLanguage, Vision, CoreML, LocalAuthentication, and iCloud frameworks via JSON-RPC over stdio. Spawn it as a subprocess, send JSON, get results. No Swift knowledge required.
 
 Zero API keys. Zero cloud costs. Runs entirely on-device.
 
@@ -24,12 +24,35 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 | `nlp.sentiment` | Sentiment analysis | NLTagger |
 | `nlp.language` | Language detection | NLLanguageRecognizer |
 | `vision.ocr` | Text extraction from images | VNRecognizeTextRequest |
+| `coreml.load_model` | Load custom CoreML model from disk | CoreML |
+| `coreml.unload_model` | Unload model, free memory | CoreML |
+| `coreml.model_info` | Get loaded model metadata | CoreML |
+| `coreml.models` | List all loaded models | CoreML |
+| `coreml.embed` | Embed text with custom model | CoreML + swift-embeddings |
+| `coreml.embed_batch` | Batch embed multiple texts | CoreML + swift-embeddings |
+| `coreml.load_contextual` | Load Apple's built-in contextual model | NLContextualEmbedding |
+| `coreml.contextual_embed` | Embed with vDSP mean pooling + L2 norm | NLContextualEmbedding + Accelerate |
+| `coreml.embed_contextual_batch` | Batch contextual embedding | NLContextualEmbedding + Accelerate |
+| `auth.available` | Query biometric auth availability | LocalAuthentication |
+| `auth.authenticate` | Prompt biometric/device authentication | LocalAuthentication |
+| `icloud.status` | Check iCloud availability | FileManager |
+| `icloud.read` | Read file from iCloud | NSFileCoordinator |
+| `icloud.write` | Write text to iCloud | NSFileCoordinator |
+| `icloud.write_bytes` | Write binary (base64) to iCloud | NSFileCoordinator |
+| `icloud.delete` | Delete iCloud file | NSFileCoordinator |
+| `icloud.move` | Move file within iCloud | NSFileCoordinator |
+| `icloud.copy_file` | Copy file within iCloud | NSFileCoordinator |
+| `icloud.list_dir` | List iCloud directory contents | FileManager |
+| `icloud.ensure_dir` | Create iCloud directory | FileManager |
+| `icloud.start_monitoring` | Watch iCloud for file changes | NSMetadataQuery |
+| `icloud.stop_monitoring` | Stop watching iCloud | NSMetadataQuery |
 | `system.capabilities` | Query available methods + OS info | — |
 
 ## Requirements
 
-- macOS 13+ (Ventura)
-- Sentence embeddings require macOS 11+ (Big Sur)
+- macOS 14+ (Sonoma)
+- CoreML contextual embeddings require macOS 14+
+- Custom model embedding via swift-embeddings requires macOS 15+
 
 ## Install
 
@@ -69,9 +92,26 @@ import { DarwinKit } from "@genesiscz/darwinkit"
 
 const dk = new DarwinKit()
 
+// NLP
 const { score, label } = await dk.nlp.sentiment({ text: "I love this" })
 const { vector } = await dk.nlp.embed({ text: "hello", language: "en" })
+
+// Vision
 const { text } = await dk.vision.ocr({ path: "/tmp/screenshot.png" })
+
+// CoreML — GPU/Neural Engine accelerated embeddings
+const model = await dk.coreml.loadContextual({ id: "en", language: "en" })
+const embedding = await dk.coreml.contextualEmbed({ model_id: "en", text: "hello world" })
+console.log(embedding.dimensions) // 512 or 768 depending on macOS version
+
+// Auth
+const { available, biometry_type } = await dk.auth.available({})
+if (available) await dk.auth.authenticate({ reason: "Confirm identity" })
+
+// iCloud
+const { available: icloudOk } = await dk.icloud.status({})
+await dk.icloud.write({ path: "notes/todo.txt", content: "Buy milk" })
+const { content } = await dk.icloud.read({ path: "notes/todo.txt" })
 
 dk.close()
 ```
@@ -261,6 +301,276 @@ Extract text from images using Apple Vision.
 Returns `{ "text": "...", "blocks": [{"text": "...", "confidence": 0.99, "bounds": {"x":0.1,"y":0.8,"width":0.3,"height":0.05}}] }`.
 
 Bounds are normalized (0-1), origin at bottom-left. Supports JPEG, PNG, TIFF, HEIC, PDF.
+
+### coreml.load_model
+
+Load a custom CoreML model from disk. Supports `.mlpackage` (compiled + cached automatically) and `.mlmodelc` (pre-compiled).
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.load_model","params":{
+  "id": "minilm",
+  "path": "/models/MiniLM.mlpackage",
+  "compute_units": "all",
+  "warm_up": true
+}}
+```
+
+| Param | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `id` | string | yes | — | Unique identifier for this model |
+| `path` | string | yes | — | Path to `.mlpackage` or `.mlmodelc` |
+| `compute_units` | string | no | `"all"` | `"all"`, `"cpuAndGPU"`, `"cpuOnly"`, `"cpuAndNeuralEngine"` |
+| `warm_up` | boolean | no | `true` | Run a dummy prediction to warm caches |
+
+Returns `{ "id": "minilm", "path": "...", "dimensions": 384, "compute_units": "all", "size_bytes": 45000000, "model_type": "coreml" }`.
+
+### coreml.unload_model
+
+Unload a model and free memory.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.unload_model","params":{"id": "minilm"}}
+```
+
+Returns `{ "ok": true }`.
+
+### coreml.model_info
+
+Get metadata for a loaded model.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.model_info","params":{"id": "minilm"}}
+```
+
+Returns `{ "id": "minilm", "path": "...", "dimensions": 384, "compute_units": "all", "size_bytes": 45000000, "model_type": "coreml" }`.
+
+### coreml.models
+
+List all loaded models (both custom CoreML and contextual).
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.models","params":{}}
+```
+
+Returns `{ "models": [...] }`.
+
+### coreml.embed
+
+Generate an embedding from a loaded custom CoreML model. Requires macOS 15+ (uses [swift-embeddings](https://github.com/jkrukowski/swift-embeddings) for tokenization).
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.embed","params":{
+  "model_id": "minilm",
+  "text": "hello world"
+}}
+```
+
+Returns `{ "vector": [...], "dimensions": 384 }`.
+
+### coreml.embed_batch
+
+Batch version of `coreml.embed`.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.embed_batch","params":{
+  "model_id": "minilm",
+  "texts": ["hello", "world"]
+}}
+```
+
+Returns `{ "vectors": [[...], [...]], "dimensions": 384, "count": 2 }`.
+
+### coreml.load_contextual
+
+Load Apple's built-in NLContextualEmbedding model. No file path needed — the model is part of macOS. Assets are downloaded automatically if not present.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.load_contextual","params":{
+  "id": "apple-en",
+  "language": "en"
+}}
+```
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Unique identifier |
+| `language` | string | yes | Language code (e.g. `"en"`, `"de"`, `"fr"`) |
+
+Returns `{ "id": "apple-en", "dimensions": <N>, "model_type": "contextual", ... }`. Dimensions vary by macOS version (512 or 768).
+
+### coreml.contextual_embed
+
+Embed text using a loaded contextual model. Uses vDSP-accelerated mean pooling over token vectors, followed by L2 normalization.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.contextual_embed","params":{
+  "model_id": "apple-en",
+  "text": "The cat is sleeping"
+}}
+```
+
+Returns `{ "vector": [...], "dimensions": <N> }`.
+
+### coreml.embed_contextual_batch
+
+Batch version of `coreml.contextual_embed`.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"coreml.embed_contextual_batch","params":{
+  "model_id": "apple-en",
+  "texts": ["hello", "world", "test"]
+}}
+```
+
+Returns `{ "vectors": [[...], [...], [...]], "dimensions": 512, "count": 3 }`.
+
+### auth.available
+
+Check if biometric authentication (Touch ID / Optic ID) is available.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"auth.available","params":{}}
+```
+
+Returns `{ "available": true, "biometry_type": "touchID" }`. Biometry types: `"touchID"`, `"opticID"`, `"none"`.
+
+### auth.authenticate
+
+Prompt the user for device-owner authentication. Tries biometrics first, falls back to device password.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"auth.authenticate","params":{
+  "reason": "Confirm your identity"
+}}
+```
+
+| Param | Type | Required | Default |
+|-------|------|----------|---------|
+| `reason` | string | no | system default |
+
+Returns `{ "success": true }`.
+
+### icloud.status
+
+Check iCloud availability and get the container URL.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.status","params":{}}
+```
+
+Returns `{ "available": true, "container_url": "/path/to/icloud/container" }`.
+
+### icloud.read
+
+Read a file from iCloud Drive using coordinated file access.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.read","params":{"path": "Documents/notes.txt"}}
+```
+
+Returns `{ "content": "file contents..." }`.
+
+### icloud.write
+
+Write UTF-8 text to iCloud Drive.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.write","params":{
+  "path": "Documents/notes.txt",
+  "content": "Hello from DarwinKit"
+}}
+```
+
+Returns `{ "ok": true }`.
+
+### icloud.write_bytes
+
+Write binary data (base64-encoded) to iCloud Drive.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.write_bytes","params":{
+  "path": "images/photo.jpg",
+  "data": "/9j/4AAQ..."
+}}
+```
+
+Returns `{ "ok": true }`.
+
+### icloud.delete
+
+Delete a file from iCloud Drive.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.delete","params":{"path": "Documents/old.txt"}}
+```
+
+Returns `{ "ok": true }`.
+
+### icloud.move
+
+Move a file within iCloud Drive.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.move","params":{
+  "source": "Documents/old.txt",
+  "destination": "Archive/old.txt"
+}}
+```
+
+Returns `{ "ok": true }`.
+
+### icloud.copy_file
+
+Copy a file within iCloud Drive.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.copy_file","params":{
+  "source": "Documents/original.txt",
+  "destination": "Documents/copy.txt"
+}}
+```
+
+Returns `{ "ok": true }`.
+
+### icloud.list_dir
+
+List contents of an iCloud Drive directory.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.list_dir","params":{"path": "Documents"}}
+```
+
+Returns `{ "entries": [{"name": "notes.txt", "is_directory": false, "size": 1024, "modified": "2024-01-15T10:30:00Z"}, ...] }`.
+
+### icloud.ensure_dir
+
+Create a directory in iCloud Drive (creates intermediate directories as needed).
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.ensure_dir","params":{"path": "Documents/Projects/New"}}
+```
+
+Returns `{ "ok": true }`.
+
+### icloud.start_monitoring
+
+Start watching the iCloud container for file changes. Emits `icloud.files_changed` notifications with `{ "paths": [...] }` when files change.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.start_monitoring","params":{}}
+```
+
+Returns `{ "ok": true }`.
+
+### icloud.stop_monitoring
+
+Stop watching the iCloud container.
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"icloud.stop_monitoring","params":{}}
+```
+
+Returns `{ "ok": true }`.
 
 ### system.capabilities
 
@@ -687,7 +997,7 @@ while let Some(event) = rx.recv().await {
 
 ```
 packages/darwinkit-swift/
-  Package.swift                          # Swift 5.9, macOS 13+
+  Package.swift                          # Swift 5.9, macOS 14+
   Sources/
     DarwinKit/                           # Thin CLI entry point
       DarwinKit.swift                    # @main, serve + query subcommands
@@ -700,14 +1010,34 @@ packages/darwinkit-swift/
         SystemHandler.swift              # system.capabilities
         NLPHandler.swift                 # nlp.* methods
         VisionHandler.swift              # vision.ocr
+        CoreMLHandler.swift              # coreml.* methods
+        AuthHandler.swift                # auth.* methods
+        CloudHandler.swift               # icloud.* methods
       Providers/
         NLPProvider.swift                # Protocol + Apple NaturalLanguage impl
         VisionProvider.swift             # Protocol + Apple Vision impl
+        CoreMLProvider.swift             # Protocol + CoreML/NLContextualEmbedding impl
+        AuthProvider.swift               # Protocol + LocalAuthentication impl
+        CloudProvider.swift              # Protocol + iCloud/NSFileCoordinator impl
   Tests/
     DarwinKitCoreTests/
       ProtocolTests.swift                # JSON-RPC encoding/decoding
       NLPHandlerTests.swift              # Mock provider tests
       VisionHandlerTests.swift           # Mock provider tests
+      CoreMLHandlerTests.swift           # Mock provider tests (25 tests)
+      CoreMLIntegrationTests.swift       # Real NLContextualEmbedding tests
+
+packages/darwinkit/                      # TypeScript SDK
+  src/
+    client.ts                            # DarwinKit class, JSON-RPC client
+    types.ts                             # All request/response types + MethodMap
+    namespaces/
+      nlp.ts                             # dk.nlp.*
+      vision.ts                          # dk.vision.*
+      coreml.ts                          # dk.coreml.*
+      auth.ts                            # dk.auth.*
+      icloud.ts                          # dk.icloud.*
+      system.ts                          # dk.system.*
 ```
 
 All Apple framework calls are behind **provider protocols**. Tests use mock providers for deterministic, fast unit tests without requiring specific OS versions.
@@ -718,8 +1048,8 @@ All Apple framework calls are behind **provider protocols**. Tests use mock prov
 cd packages/darwinkit-swift
 swift build                    # Debug build
 swift build -c release         # Release build
-swift test                     # Run all 43 tests
-swift test --filter NLP        # Run NLP tests only
+swift test                     # Run all 74 tests
+swift test --filter CoreML     # Run CoreML tests only
 ```
 
 ### Build universal binary (arm64 + x86_64)
@@ -731,9 +1061,11 @@ swift build -c release --arch arm64 --arch x86_64
 
 ## Roadmap
 
-- **v0.1.0** (current) — NLP + Vision + JSON-RPC server
-- **v0.2.0** — `speech.transcribe` via SFSpeechRecognizer
-- **v0.3.0** — `llm.generate` via Apple Foundation Models (macOS 26+)
+- **v0.1.0** — NLP (embeddings, sentiment, tagging, language detection) + Vision (OCR) + Auth (biometrics) + iCloud (file ops) + TypeScript SDK
+- **v0.2.0** — Type improvements, npm binary bundling, release tooling
+- **v0.3.0** (current) — CoreML namespace: GPU/Neural Engine text embedding, NLContextualEmbedding, custom model loading via swift-embeddings
+- **v0.4.0** — `speech.*` via SpeechAnalyzer (macOS 26+), `translate.*` via Translation framework, `vision.*` extensions (image classification, face detection, barcode reading, image similarity)
+- **v0.5.0** — `llm.*` via Apple Foundation Models (on-device ~3B LLM, structured output, tool calling, streaming), `sound.*` via SoundAnalysis (300+ audio categories), `contacts.*` / `calendar.*` / `reminders.*` read-only access via Contacts + EventKit
 
 ## License
 
