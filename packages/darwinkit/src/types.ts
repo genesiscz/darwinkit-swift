@@ -637,6 +637,7 @@ export interface CalendarInfo {
     | "birthday"
     | "unknown";
   color: string;
+  source: string;
   is_immutable: boolean;
   allows_content_modifications: boolean;
 }
@@ -652,6 +653,33 @@ export interface CalendarEventInfo {
   calendar_identifier: string;
   calendar_title: string;
   url?: string;
+  availability: "free" | "busy" | "tentative" | "unavailable";
+  has_alarms: boolean;
+  alarms: number[];
+  external_identifier?: string;
+}
+
+export interface SourceInfo {
+  identifier: string;
+  title: string;
+  source_type:
+    | "local"
+    | "exchange"
+    | "calDAV"
+    | "mobileMe"
+    | "subscribed"
+    | "birthdays"
+    | "unknown";
+}
+
+export interface CalendarSaveResult {
+  success: boolean;
+  identifier?: string;
+  error?: string;
+}
+
+export interface CalendarOkResult {
+  ok: boolean;
 }
 
 export interface CalendarAuthorizedResult {
@@ -678,6 +706,67 @@ export interface CalendarEventParams {
   identifier: string;
 }
 
+export interface CalendarSaveEventParams {
+  id?: string;
+  calendar_identifier: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  notes?: string;
+  location?: string;
+  url?: string;
+  is_all_day?: boolean;
+  availability?: "free" | "busy" | "tentative" | "unavailable";
+  alarms?: number[];
+  span?: "thisEvent" | "futureEvents";
+  commit?: boolean;
+}
+
+export interface CalendarRemoveEventParams {
+  identifier: string;
+  span?: "thisEvent" | "futureEvents";
+  commit?: boolean;
+}
+
+export interface CalendarItemParams {
+  identifier: string;
+}
+
+export interface CalendarItemResult {
+  type: "event" | "reminder";
+  item: CalendarEventInfo | ReminderInfo;
+}
+
+export interface CalendarItemsExternalParams {
+  external_identifier: string;
+}
+
+export interface CalendarItemsExternalResult {
+  items: CalendarItemResult[];
+}
+
+export interface CalendarSourcesResult {
+  sources: SourceInfo[];
+}
+
+export interface CalendarSourceParams {
+  identifier: string;
+}
+
+export interface CalendarSaveCalendarParams {
+  id?: string;
+  title: string;
+  source_identifier: string;
+  entity_type?: "event" | "reminder";
+  color_hex?: string;
+  commit?: boolean;
+}
+
+export interface CalendarRemoveCalendarParams {
+  identifier: string;
+  commit?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Reminders
 // ---------------------------------------------------------------------------
@@ -686,6 +775,7 @@ export interface ReminderListInfo {
   identifier: string;
   title: string;
   color: string;
+  source: string;
 }
 
 export interface ReminderInfo {
@@ -694,10 +784,14 @@ export interface ReminderInfo {
   is_completed: boolean;
   completion_date?: string;
   due_date?: string;
+  start_date?: string;
   priority: number;
   notes?: string;
+  url?: string;
   list_identifier: string;
   list_title: string;
+  has_alarms: boolean;
+  external_identifier?: string;
 }
 
 export interface RemindersAuthorizedResult {
@@ -713,6 +807,184 @@ export interface RemindersItemsParams {
 }
 export interface RemindersItemsResult {
   reminders: ReminderInfo[];
+}
+
+export interface RemindersSaveItemParams {
+  id?: string;
+  calendar_identifier: string;
+  title: string;
+  due_date?: string;
+  start_date?: string;
+  priority?: number;
+  notes?: string;
+  completed?: boolean;
+  url?: string;
+  commit?: boolean;
+}
+
+export interface RemindersSaveResult {
+  success: boolean;
+  identifier?: string;
+  error?: string;
+}
+
+export interface RemindersRemoveItemParams {
+  identifier: string;
+  commit?: boolean;
+}
+
+export interface RemindersCompleteItemParams {
+  identifier: string;
+}
+
+export interface RemindersIncompleteParams {
+  start_date?: string;
+  end_date?: string;
+  list_identifiers?: string[];
+}
+
+export interface RemindersCompletedParams {
+  start_date?: string;
+  end_date?: string;
+  list_identifiers?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (UNUserNotificationCenter)
+// ---------------------------------------------------------------------------
+
+export type NotifyAuthorizationOption =
+  | "alert"
+  | "sound"
+  | "badge"
+  | "criticalAlert"
+  | "provisional";
+
+export interface NotifyRequestAuthorizationParams {
+  options?: NotifyAuthorizationOption[];
+}
+export interface NotifyRequestAuthorizationResult {
+  granted: boolean;
+}
+
+export type NotifyAuthorizationStatus =
+  | "notDetermined"
+  | "denied"
+  | "authorized"
+  | "provisional"
+  | "ephemeral";
+export type NotifyAlertSetting = "notSupported" | "disabled" | "enabled";
+
+export interface NotifySettingsResult {
+  authorization_status: NotifyAuthorizationStatus;
+  sound_setting: NotifyAlertSetting;
+  badge_setting: NotifyAlertSetting;
+  alert_setting: NotifyAlertSetting;
+  notification_center_setting: NotifyAlertSetting;
+  lock_screen_setting: NotifyAlertSetting;
+  critical_alert_setting: NotifyAlertSetting;
+  alert_style: "none" | "banner" | "alert";
+}
+
+export type NotifySoundType =
+  | "default"
+  | "none"
+  | { named: string }
+  | { critical: { volume?: number } };
+
+export interface NotifyTriggerTimeInterval {
+  type: "timeInterval";
+  seconds: number;
+  repeats?: boolean;
+}
+export interface NotifyTriggerCalendar {
+  type: "calendar";
+  year?: number;
+  month?: number;
+  day?: number;
+  hour?: number;
+  minute?: number;
+  second?: number;
+  weekday?: number;
+  repeats?: boolean;
+}
+export type NotifyTrigger = NotifyTriggerTimeInterval | NotifyTriggerCalendar;
+
+export interface NotifySendParams {
+  title: string;
+  body: string;
+  subtitle?: string;
+  identifier?: string;
+  sound?: NotifySoundType;
+  badge?: number;
+  thread_identifier?: string;
+  category_identifier?: string;
+  user_info?: Record<string, unknown>;
+  attachments?: string[];
+  trigger?: NotifyTrigger;
+}
+export interface NotifySendResult {
+  ok: true;
+  identifier: string;
+}
+
+export interface NotifyActionParams {
+  identifier: string;
+  title: string;
+  text_input?: boolean;
+  text_input_button_title?: string;
+  text_input_placeholder?: string;
+  destructive?: boolean;
+  auth_required?: boolean;
+}
+export interface NotifyRegisterCategoryParams {
+  identifier: string;
+  actions: NotifyActionParams[];
+  hidden_preview_placeholder?: string;
+  custom_dismiss_action?: boolean;
+}
+
+export interface NotifyPendingInfo {
+  identifier: string;
+  title: string;
+  body: string;
+  subtitle?: string;
+  thread_identifier?: string;
+  category_identifier?: string;
+  trigger_type?: string;
+  next_trigger_date?: string;
+}
+export interface NotifyPendingResult {
+  notifications: NotifyPendingInfo[];
+}
+
+export interface NotifyDeliveredInfo {
+  identifier: string;
+  title: string;
+  body: string;
+  subtitle?: string;
+  thread_identifier?: string;
+  category_identifier?: string;
+  date: string;
+}
+export interface NotifyDeliveredResult {
+  notifications: NotifyDeliveredInfo[];
+}
+
+export interface NotifyRemoveParams {
+  identifiers: string[];
+}
+
+export interface NotifyOkResult {
+  ok: true;
+}
+
+export interface NotifyInteractionEvent {
+  notification_identifier: string;
+  action_identifier: string;
+  user_text?: string;
+  user_info: Record<string, unknown>;
+  category_identifier: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -941,6 +1213,66 @@ export interface MethodMap {
     params: CalendarEventParams;
     result: CalendarEventInfo;
   };
+  "calendar.save_event": {
+    params: CalendarSaveEventParams;
+    result: CalendarSaveResult;
+  };
+  "calendar.remove_event": {
+    params: CalendarRemoveEventParams;
+    result: CalendarOkResult;
+  };
+  "calendar.calendar_item": {
+    params: CalendarItemParams;
+    result: CalendarItemResult;
+  };
+  "calendar.calendar_items_external": {
+    params: CalendarItemsExternalParams;
+    result: CalendarItemsExternalResult;
+  };
+  "calendar.sources": {
+    params: Record<string, never>;
+    result: CalendarSourcesResult;
+  };
+  "calendar.source": {
+    params: CalendarSourceParams;
+    result: SourceInfo;
+  };
+  "calendar.delegate_sources": {
+    params: Record<string, never>;
+    result: CalendarSourcesResult;
+  };
+  "calendar.save_calendar": {
+    params: CalendarSaveCalendarParams;
+    result: CalendarSaveResult;
+  };
+  "calendar.remove_calendar": {
+    params: CalendarRemoveCalendarParams;
+    result: CalendarOkResult;
+  };
+  "calendar.default_calendar_events": {
+    params: Record<string, never>;
+    result: CalendarInfo;
+  };
+  "calendar.default_calendar_reminders": {
+    params: Record<string, never>;
+    result: CalendarInfo;
+  };
+  "calendar.commit": {
+    params: Record<string, never>;
+    result: CalendarOkResult;
+  };
+  "calendar.reset": {
+    params: Record<string, never>;
+    result: CalendarOkResult;
+  };
+  "calendar.refresh_sources": {
+    params: Record<string, never>;
+    result: CalendarOkResult;
+  };
+  "calendar.request_write_only_access": {
+    params: Record<string, never>;
+    result: CalendarAuthorizedResult;
+  };
   // Reminders
   "reminders.authorized": {
     params: Record<string, never>;
@@ -953,6 +1285,67 @@ export interface MethodMap {
   "reminders.items": {
     params: RemindersItemsParams;
     result: RemindersItemsResult;
+  };
+  "reminders.save_item": {
+    params: RemindersSaveItemParams;
+    result: RemindersSaveResult;
+  };
+  "reminders.remove_item": {
+    params: RemindersRemoveItemParams;
+    result: CalendarOkResult;
+  };
+  "reminders.complete_item": {
+    params: RemindersCompleteItemParams;
+    result: ReminderInfo;
+  };
+  "reminders.incomplete": {
+    params: RemindersIncompleteParams;
+    result: RemindersItemsResult;
+  };
+  "reminders.completed": {
+    params: RemindersCompletedParams;
+    result: RemindersItemsResult;
+  };
+  // Notifications
+  "notifications.request_authorization": {
+    params: NotifyRequestAuthorizationParams;
+    result: NotifyRequestAuthorizationResult;
+  };
+  "notifications.settings": {
+    params: Record<string, never>;
+    result: NotifySettingsResult;
+  };
+  "notifications.send": {
+    params: NotifySendParams;
+    result: NotifySendResult;
+  };
+  "notifications.list_pending": {
+    params: Record<string, never>;
+    result: NotifyPendingResult;
+  };
+  "notifications.remove_pending": {
+    params: NotifyRemoveParams;
+    result: NotifyOkResult;
+  };
+  "notifications.remove_all_pending": {
+    params: Record<string, never>;
+    result: NotifyOkResult;
+  };
+  "notifications.list_delivered": {
+    params: Record<string, never>;
+    result: NotifyDeliveredResult;
+  };
+  "notifications.remove_delivered": {
+    params: NotifyRemoveParams;
+    result: NotifyOkResult;
+  };
+  "notifications.remove_all_delivered": {
+    params: Record<string, never>;
+    result: NotifyOkResult;
+  };
+  "notifications.register_category": {
+    params: NotifyRegisterCategoryParams;
+    result: NotifyOkResult;
   };
 }
 

@@ -9,6 +9,7 @@ import { createGunzip } from "node:zlib";
 import { extract } from "tar";
 
 const BINARY_NAME = "darwinkit";
+const APP_BUNDLE_PATH = "DarwinKit.app/Contents/MacOS/darwinkit";
 const CACHE_DIR = join(homedir(), ".cache", "darwinkit");
 const RELEASE_URL =
   "https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-universal.tar.gz";
@@ -34,19 +35,27 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
     return binaryPath;
   }
 
-  // 2. Check bundled binary (shipped with npm package)
+  // 2. Check bundled .app bundle (shipped with npm package, enables notifications)
+  const bundledApp = join(getPackageDir(), "..", "bin", APP_BUNDLE_PATH);
+  if (existsSync(bundledApp)) return bundledApp;
+
+  // 3. Check bundled standalone binary
   const bundled = join(getPackageDir(), "..", "bin", BINARY_NAME);
   if (existsSync(bundled)) return bundled;
 
-  // 3. Check PATH
+  // 4. Check PATH
   const fromPath = findOnPath(BINARY_NAME);
   if (fromPath) return fromPath;
 
-  // 4. Check cache
+  // 5. Check cached .app bundle
+  const cachedApp = join(CACHE_DIR, APP_BUNDLE_PATH);
+  if (existsSync(cachedApp)) return cachedApp;
+
+  // 6. Check cached standalone binary
   const cached = join(CACHE_DIR, BINARY_NAME);
   if (existsSync(cached)) return cached;
 
-  // 5. Download from GitHub releases
+  // 7. Download from GitHub releases
   mkdirSync(CACHE_DIR, { recursive: true });
 
   try {
@@ -61,7 +70,7 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
     console.error("[darwinkit] Download failed:", downloadError);
   }
 
-  // 6. Build from source
+  // 8. Build from source
   if (findOnPath("swift")) {
     try {
       console.error("[darwinkit] Attempting to build from source...");
@@ -71,7 +80,7 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
     }
   }
 
-  // 7. Fail with instructions
+  // 9. Fail with instructions
   throw new Error(
     "Could not find or install darwinkit binary.\n" +
       "Install it manually:\n" +
