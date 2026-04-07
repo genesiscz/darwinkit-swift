@@ -24,6 +24,7 @@ export { LLM } from "./namespaces/llm.js";
 export { Contacts } from "./namespaces/contacts.js";
 export { Calendar } from "./namespaces/calendar.js";
 export { Reminders } from "./namespaces/reminders.js";
+export { Notifications } from "./namespaces/notifications.js";
 
 // All types
 export type {
@@ -181,7 +182,29 @@ export type {
   RemindersListsResult,
   RemindersItemsParams,
   RemindersItemsResult,
-  // Notifications
+  // Notifications (system)
   ReadyNotification,
   FilesChangedNotification,
+  // Notifications (UNUserNotificationCenter)
+  NotifyAuthorizationOption,
+  NotifyRequestAuthorizationParams,
+  NotifyRequestAuthorizationResult,
+  NotifyAuthorizationStatus,
+  NotifyAlertSetting,
+  NotifySettingsResult,
+  NotifySoundType,
+  NotifyTriggerTimeInterval,
+  NotifyTriggerCalendar,
+  NotifyTrigger,
+  NotifySendParams,
+  NotifySendResult,
+  NotifyActionParams,
+  NotifyRegisterCategoryParams,
+  NotifyPendingInfo,
+  NotifyPendingResult,
+  NotifyDeliveredInfo,
+  NotifyDeliveredResult,
+  NotifyRemoveParams,
+  NotifyOkResult,
+  NotifyInteractionEvent,
 } from "./types.js";

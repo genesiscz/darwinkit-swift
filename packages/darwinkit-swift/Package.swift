@@ -19,6 +19,15 @@ let package = Package(
             dependencies: [
                 "DarwinKitCore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ],
+            exclude: ["Info.plist"],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate",
+                    "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist",
+                    "-Xlinker", "Sources/DarwinKit/Info.plist"
+                ])
             ]
         ),
         .target(

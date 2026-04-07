@@ -10,10 +10,12 @@ public struct CalendarInfo {
     public let color: String  // hex color string e.g. "#FF0000"
     public let isImmutable: Bool
     public let allowsContentModifications: Bool
+    public let source: String  // account name e.g. "iCloud", "On My Mac"
 
     public init(
         identifier: String, title: String, type: String,
-        color: String, isImmutable: Bool, allowsContentModifications: Bool
+        color: String, isImmutable: Bool, allowsContentModifications: Bool,
+        source: String
     ) {
         self.identifier = identifier
         self.title = title
@@ -21,6 +23,7 @@ public struct CalendarInfo {
         self.color = color
         self.isImmutable = isImmutable
         self.allowsContentModifications = allowsContentModifications
+        self.source = source
     }
 
     public func toDict() -> [String: Any] {
@@ -31,6 +34,7 @@ public struct CalendarInfo {
             "color": color,
             "is_immutable": isImmutable,
             "allows_content_modifications": allowsContentModifications,
+            "source": source,
         ]
     }
 }
@@ -46,11 +50,17 @@ public struct CalendarEventInfo {
     public let calendarIdentifier: String
     public let calendarTitle: String
     public let url: String?
+    public let availability: String  // "free" | "busy" | "tentative" | "unavailable"
+    public let hasAlarms: Bool
+    public let alarms: [Int]  // minutes before event (positive values)
+    public let externalIdentifier: String?
 
     public init(
         identifier: String, title: String, startDate: String, endDate: String,
         isAllDay: Bool, location: String?, notes: String?,
-        calendarIdentifier: String, calendarTitle: String, url: String?
+        calendarIdentifier: String, calendarTitle: String, url: String?,
+        availability: String, hasAlarms: Bool, alarms: [Int],
+        externalIdentifier: String?
     ) {
         self.identifier = identifier
         self.title = title
@@ -62,6 +72,10 @@ public struct CalendarEventInfo {
         self.calendarIdentifier = calendarIdentifier
         self.calendarTitle = calendarTitle
         self.url = url
+        self.availability = availability
+        self.hasAlarms = hasAlarms
+        self.alarms = alarms
+        self.externalIdentifier = externalIdentifier
     }
 
     public func toDict() -> [String: Any] {
@@ -73,11 +87,46 @@ public struct CalendarEventInfo {
             "is_all_day": isAllDay,
             "calendar_identifier": calendarIdentifier,
             "calendar_title": calendarTitle,
+            "availability": availability,
+            "has_alarms": hasAlarms,
+            "alarms": alarms,
         ]
         if let location = location { dict["location"] = location }
         if let notes = notes { dict["notes"] = notes }
         if let url = url { dict["url"] = url }
+        if let externalIdentifier = externalIdentifier { dict["external_identifier"] = externalIdentifier }
         return dict
+    }
+}
+
+public struct SourceInfo {
+    public let identifier: String
+    public let title: String
+    public let sourceType: String  // "local" | "exchange" | "calDAV" | "mobileMe" | "subscribed" | "birthdays"
+
+    public func toDict() -> [String: Any] {
+        ["identifier": identifier, "title": title, "source_type": sourceType]
+    }
+}
+
+public struct CalendarSaveResult {
+    public let success: Bool
+    public let identifier: String?
+    public let error: String?
+
+    public func toDict() -> [String: Any] {
+        var dict: [String: Any] = ["success": success]
+        if let identifier = identifier { dict["identifier"] = identifier }
+        if let error = error { dict["error"] = error }
+        return dict
+    }
+}
+
+public struct OkResult {
+    public let ok: Bool
+
+    public func toDict() -> [String: Any] {
+        ["ok": ok]
     }
 }
 
@@ -109,6 +158,60 @@ public protocol CalendarProvider {
 
     /// Get a single event by identifier.
     func getEvent(identifier: String) throws -> CalendarEventInfo
+
+    /// Save (create or update) an event.
+    func saveEvent(
+        id: String?, calendarIdentifier: String, title: String,
+        startDate: String, endDate: String, notes: String?,
+        location: String?, url: String?, isAllDay: Bool?,
+        availability: String?, alarms: [Int]?,
+        span: String, commit: Bool
+    ) throws -> CalendarSaveResult
+
+    /// Remove an event.
+    func removeEvent(identifier: String, span: String, commit: Bool) throws -> Bool
+
+    /// Get a calendar item (event or reminder) by identifier.
+    func getCalendarItem(identifier: String) throws -> [String: Any]
+
+    /// Get calendar items by external identifier.
+    func getCalendarItemsByExternalId(externalIdentifier: String) throws -> [[String: Any]]
+
+    /// Get event store sources.
+    func getSources() throws -> [SourceInfo]
+
+    /// Get a single source by identifier.
+    func getSource(identifier: String) throws -> SourceInfo
+
+    /// Get delegate sources (macOS 12+).
+    func getDelegateSources() throws -> [SourceInfo]
+
+    /// Save (create or update) a calendar.
+    func saveCalendar(
+        id: String?, title: String, sourceIdentifier: String,
+        entityType: String?, colorHex: String?, commit: Bool
+    ) throws -> CalendarSaveResult
+
+    /// Remove a calendar.
+    func removeCalendar(identifier: String, commit: Bool) throws -> Bool
+
+    /// Get default calendar for new events.
+    func defaultCalendarForNewEvents() throws -> CalendarInfo?
+
+    /// Get default calendar for new reminders.
+    func defaultCalendarForNewReminders() throws -> CalendarInfo?
+
+    /// Commit pending changes.
+    func commit() throws
+
+    /// Reset (discard unsaved changes).
+    func reset()
+
+    /// Refresh sources if necessary.
+    func refreshSources()
+
+    /// Request write-only access to events.
+    func requestWriteOnlyAccess() throws -> CalendarAuthorizationResult
 }
 
 // MARK: - Apple Implementation
@@ -199,7 +302,7 @@ public final class AppleCalendarProvider: CalendarProvider {
 
     private func ensureAuthorized() throws {
         let status = EKEventStore.authorizationStatus(for: .event)
-        guard status == .fullAccess else {
+        guard status == .fullAccess || status == .writeOnly else {
             throw JsonRpcError.permissionDenied(
                 "Calendar access not authorized. Call calendar.authorized first."
             )
@@ -231,12 +334,28 @@ public final class AppleCalendarProvider: CalendarProvider {
             type: typeName,
             color: color,
             isImmutable: cal.isImmutable,
-            allowsContentModifications: cal.allowsContentModifications
+            allowsContentModifications: cal.allowsContentModifications,
+            source: cal.source.title
         )
     }
 
     private func mapEvent(_ event: EKEvent) -> CalendarEventInfo {
-        CalendarEventInfo(
+        let availabilityName: String
+        switch event.availability {
+        case .free: availabilityName = "free"
+        case .busy: availabilityName = "busy"
+        case .tentative: availabilityName = "tentative"
+        case .unavailable: availabilityName = "unavailable"
+        @unknown default: availabilityName = "busy"
+        }
+
+        let alarmMinutes: [Int] = (event.alarms ?? []).compactMap { alarm in
+            let seconds = alarm.relativeOffset
+            guard seconds < 0 else { return nil }
+            return Int(-seconds / 60)
+        }
+
+        return CalendarEventInfo(
             identifier: event.eventIdentifier,
             title: event.title ?? "",
             startDate: isoFormatter.string(from: event.startDate),
@@ -246,7 +365,326 @@ public final class AppleCalendarProvider: CalendarProvider {
             notes: event.notes,
             calendarIdentifier: event.calendar.calendarIdentifier,
             calendarTitle: event.calendar.title,
-            url: event.url?.absoluteString
+            url: event.url?.absoluteString,
+            availability: availabilityName,
+            hasAlarms: event.hasAlarms,
+            alarms: alarmMinutes,
+            externalIdentifier: event.calendarItemExternalIdentifier
         )
+    }
+
+    private func mapSource(_ source: EKSource) -> SourceInfo {
+        let typeName: String
+        switch source.sourceType {
+        case .local: typeName = "local"
+        case .exchange: typeName = "exchange"
+        case .calDAV: typeName = "calDAV"
+        case .mobileMe: typeName = "mobileMe"
+        case .subscribed: typeName = "subscribed"
+        case .birthdays: typeName = "birthdays"
+        @unknown default: typeName = "unknown"
+        }
+        return SourceInfo(identifier: source.sourceIdentifier, title: source.title, sourceType: typeName)
+    }
+
+    private func parseSpan(_ span: String) -> EKSpan {
+        switch span {
+        case "futureEvents": return .futureEvents
+        default: return .thisEvent
+        }
+    }
+
+    private func parseHexColor(_ hex: String) -> CGColor? {
+        guard hex.hasPrefix("#") else { return nil }
+        let hexString = String(hex.dropFirst())
+
+        let scanner = Scanner(string: hexString)
+        var hexValue: UInt64 = 0
+
+        guard scanner.scanHexInt64(&hexValue) else { return nil }
+
+        let r: CGFloat
+        let g: CGFloat
+        let b: CGFloat
+        let a: CGFloat
+
+        if hexString.count == 8 {
+            r = CGFloat((hexValue & 0xFF000000) >> 24) / 255.0
+            g = CGFloat((hexValue & 0x00FF0000) >> 16) / 255.0
+            b = CGFloat((hexValue & 0x0000FF00) >> 8) / 255.0
+            a = CGFloat(hexValue & 0x000000FF) / 255.0
+        } else if hexString.count == 6 {
+            r = CGFloat((hexValue & 0xFF0000) >> 16) / 255.0
+            g = CGFloat((hexValue & 0x00FF00) >> 8) / 255.0
+            b = CGFloat(hexValue & 0x0000FF) / 255.0
+            a = 1.0
+        } else {
+            return nil
+        }
+
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        return CGColor(colorSpace: colorSpace, components: [r, g, b, a])
+    }
+
+    private func mapCalendarItem(_ item: EKCalendarItem) -> [String: Any] {
+        var dict: [String: Any] = [
+            "identifier": item.calendarItemIdentifier,
+            "title": item.title ?? "",
+            "calendar_identifier": item.calendar.calendarIdentifier,
+            "calendar_title": item.calendar.title,
+            "has_alarms": item.hasAlarms,
+        ]
+
+        if let externalId = item.calendarItemExternalIdentifier {
+            dict["external_identifier"] = externalId
+        }
+
+        if let event = item as? EKEvent {
+            dict["type"] = "event"
+            dict["start_date"] = isoFormatter.string(from: event.startDate)
+            dict["end_date"] = isoFormatter.string(from: event.endDate)
+            dict["is_all_day"] = event.isAllDay
+            if let location = event.location { dict["location"] = location }
+            if let notes = event.notes { dict["notes"] = notes }
+            if let url = event.url { dict["url"] = url.absoluteString }
+        } else if let reminder = item as? EKReminder {
+            dict["type"] = "reminder"
+            dict["completed"] = reminder.isCompleted
+            if let completionDate = reminder.completionDate {
+                dict["completion_date"] = isoFormatter.string(from: completionDate)
+            }
+        }
+
+        return dict
+    }
+
+    // MARK: - Write Methods
+
+    public func saveEvent(
+        id: String?, calendarIdentifier: String, title: String,
+        startDate: String, endDate: String, notes: String?,
+        location: String?, url: String?, isAllDay: Bool?,
+        availability: String?, alarms: [Int]?,
+        span: String, commit: Bool
+    ) throws -> CalendarSaveResult {
+        try ensureAuthorized()
+
+        let event: EKEvent
+        if let id = id, let existing = store.event(withIdentifier: id) {
+            event = existing
+        } else {
+            event = EKEvent(eventStore: store)
+            guard let calendar = store.calendar(withIdentifier: calendarIdentifier) else {
+                return CalendarSaveResult(
+                    success: false, identifier: nil,
+                    error: "Calendar not found: \(calendarIdentifier)"
+                )
+            }
+            event.calendar = calendar
+        }
+
+        event.title = title
+
+        guard let start = isoFormatter.date(from: startDate) else {
+            throw JsonRpcError.invalidParams("Invalid start_date ISO 8601 format: \(startDate)")
+        }
+        guard let end = isoFormatter.date(from: endDate) else {
+            throw JsonRpcError.invalidParams("Invalid end_date ISO 8601 format: \(endDate)")
+        }
+
+        event.startDate = start
+        event.endDate = end
+        event.notes = notes
+        event.location = location
+
+        if let urlString = url, let parsed = URL(string: urlString) {
+            event.url = parsed
+        } else {
+            event.url = nil
+        }
+
+        if let isAllDay = isAllDay {
+            event.isAllDay = isAllDay
+        }
+
+        if let availability = availability {
+            switch availability.lowercased() {
+            case "free": event.availability = .free
+            case "busy": event.availability = .busy
+            case "tentative": event.availability = .tentative
+            case "unavailable": event.availability = .unavailable
+            default: break
+            }
+        }
+
+        if let alarms = alarms {
+            event.alarms?.forEach { event.removeAlarm($0) }
+            for mins in alarms {
+                event.addAlarm(EKAlarm(relativeOffset: TimeInterval(-mins * 60)))
+            }
+        }
+
+        let ekSpan = parseSpan(span)
+
+        do {
+            try store.save(event, span: ekSpan, commit: commit)
+            return CalendarSaveResult(success: true, identifier: event.eventIdentifier, error: nil)
+        } catch {
+            return CalendarSaveResult(success: false, identifier: nil, error: error.localizedDescription)
+        }
+    }
+
+    public func removeEvent(identifier: String, span: String, commit: Bool) throws -> Bool {
+        try ensureAuthorized()
+
+        guard let event = store.event(withIdentifier: identifier) else {
+            throw JsonRpcError.invalidParams("Event not found: \(identifier)")
+        }
+
+        let ekSpan = parseSpan(span)
+        try store.remove(event, span: ekSpan, commit: commit)
+        return true
+    }
+
+    public func getCalendarItem(identifier: String) throws -> [String: Any] {
+        try ensureAuthorized()
+
+        guard let item = store.calendarItem(withIdentifier: identifier) else {
+            throw JsonRpcError.invalidParams("Calendar item not found: \(identifier)")
+        }
+
+        return mapCalendarItem(item)
+    }
+
+    public func getCalendarItemsByExternalId(externalIdentifier: String) throws -> [[String: Any]] {
+        try ensureAuthorized()
+
+        let items = store.calendarItems(withExternalIdentifier: externalIdentifier)
+        return items.map { mapCalendarItem($0) }
+    }
+
+    public func getSources() throws -> [SourceInfo] {
+        try ensureAuthorized()
+        return store.sources.map { mapSource($0) }
+    }
+
+    public func getSource(identifier: String) throws -> SourceInfo {
+        try ensureAuthorized()
+
+        guard let source = store.source(withIdentifier: identifier) else {
+            throw JsonRpcError.invalidParams("Source not found: \(identifier)")
+        }
+
+        return mapSource(source)
+    }
+
+    public func getDelegateSources() throws -> [SourceInfo] {
+        try ensureAuthorized()
+
+        if #available(macOS 12.0, *) {
+            return store.delegateSources.map { mapSource($0) }
+        } else {
+            return []
+        }
+    }
+
+    public func saveCalendar(
+        id: String?, title: String, sourceIdentifier: String,
+        entityType: String?, colorHex: String?, commit: Bool
+    ) throws -> CalendarSaveResult {
+        try ensureAuthorized()
+
+        let ekEntityType: EKEntityType = (entityType?.lowercased() == "reminder") ? .reminder : .event
+
+        let calendar: EKCalendar
+        if let id = id, let existing = store.calendar(withIdentifier: id) {
+            calendar = existing
+        } else {
+            calendar = EKCalendar(for: ekEntityType, eventStore: store)
+            guard let source = store.source(withIdentifier: sourceIdentifier) else {
+                return CalendarSaveResult(
+                    success: false, identifier: nil,
+                    error: "Source not found: \(sourceIdentifier)"
+                )
+            }
+            calendar.source = source
+        }
+
+        calendar.title = title
+
+        if let colorHex = colorHex, let cgColor = parseHexColor(colorHex) {
+            calendar.cgColor = cgColor
+        }
+
+        do {
+            try store.saveCalendar(calendar, commit: commit)
+            return CalendarSaveResult(success: true, identifier: calendar.calendarIdentifier, error: nil)
+        } catch {
+            return CalendarSaveResult(success: false, identifier: nil, error: error.localizedDescription)
+        }
+    }
+
+    public func removeCalendar(identifier: String, commit: Bool) throws -> Bool {
+        try ensureAuthorized()
+
+        guard let calendar = store.calendar(withIdentifier: identifier) else {
+            throw JsonRpcError.invalidParams("Calendar not found: \(identifier)")
+        }
+
+        try store.removeCalendar(calendar, commit: commit)
+        return true
+    }
+
+    public func defaultCalendarForNewEvents() throws -> CalendarInfo? {
+        try ensureAuthorized()
+
+        guard let calendar = store.defaultCalendarForNewEvents else {
+            return nil
+        }
+
+        return mapCalendar(calendar)
+    }
+
+    public func defaultCalendarForNewReminders() throws -> CalendarInfo? {
+        try ensureAuthorized()
+
+        guard let calendar = store.defaultCalendarForNewReminders() else {
+            return nil
+        }
+
+        return mapCalendar(calendar)
+    }
+
+    public func commit() throws {
+        try store.commit()
+    }
+
+    public func reset() {
+        store.reset()
+    }
+
+    public func refreshSources() {
+        store.refreshSourcesIfNecessary()
+    }
+
+    public func requestWriteOnlyAccess() throws -> CalendarAuthorizationResult {
+        let semaphore = DispatchSemaphore(value: 0)
+        var granted = false
+
+        if #available(macOS 14, *) {
+            store.requestWriteOnlyAccessToEvents { success, _ in
+                granted = success
+                semaphore.signal()
+            }
+        } else {
+            store.requestAccess(to: .event) { success, _ in
+                granted = success
+                semaphore.signal()
+            }
+        }
+
+        semaphore.wait()
+        let status = granted ? "writeOnly" : "denied"
+        return CalendarAuthorizationResult(status: status, authorized: granted)
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import Foundation
 
@@ -24,6 +25,11 @@ public final class JsonRpcServer: NotificationSink {
 
     /// Start the server. Blocks until stdin is closed.
     public func start() {
+        // Register as a background app so macOS treats us as a proper application.
+        // This enables system dialogs (notification permission prompt) and
+        // notification delivery via UNUserNotificationCenter.
+        NSApplication.shared.setActivationPolicy(.accessory)
+
         // Ignore SIGPIPE so broken-pipe returns EPIPE instead of killing the process
         signal(SIGPIPE, SIG_IGN)
 
@@ -51,8 +57,9 @@ public final class JsonRpcServer: NotificationSink {
         stdinThread.name = "darwinkit.stdin"
         stdinThread.start()
 
-        // Main thread runs RunLoop (needed for async Apple framework callbacks)
-        RunLoop.main.run()
+        // Run NSApplication event loop (needed for async Apple framework callbacks
+        // and for system dialogs like notification permission prompts)
+        NSApp.run()
     }
 
     private func handleLine(_ line: String) {

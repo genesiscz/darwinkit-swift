@@ -51,10 +51,32 @@ if [ ! -f "$BINARY" ]; then
   exit 1
 fi
 
+# ── Create .app bundle ──────────────────────────────────
+# UNUserNotificationCenter requires a .app bundle with Info.plist
+# for notification permissions to work on macOS.
+create_app_bundle() {
+  local src_binary="$1"
+  local dest_dir="$2"
+  local app_dir="$dest_dir/DarwinKit.app/Contents"
+
+  echo "Creating .app bundle..."
+  mkdir -p "$app_dir/MacOS"
+  cp "$src_binary" "$app_dir/MacOS/darwinkit"
+  chmod 755 "$app_dir/MacOS/darwinkit"
+  cp "$SWIFT_DIR/Sources/DarwinKit/Info.plist" "$app_dir/Info.plist"
+
+  # Ad-hoc codesign so macOS accepts the bundle
+  codesign --force --sign - "$app_dir/MacOS/darwinkit" 2>/dev/null || true
+
+  echo "App bundle created: $dest_dir/DarwinKit.app"
+}
+
 # ── Build-only mode ───────────────────────────────────
 if [ "$BUILD_ONLY" = true ]; then
   echo "Copying binary to SDK..."
   mkdir -p "$SDK_DIR/bin"
+  create_app_bundle "$BINARY" "$SDK_DIR/bin"
+  # Also keep standalone binary for backward compat
   cp "$BINARY" "$SDK_DIR/bin/darwinkit"
   chmod 755 "$SDK_DIR/bin/darwinkit"
 
@@ -64,6 +86,7 @@ if [ "$BUILD_ONLY" = true ]; then
   bun run build
 
   echo "Build complete. Binary: $SDK_DIR/bin/darwinkit"
+  echo "App bundle: $SDK_DIR/bin/DarwinKit.app"
   echo "To link into another project: cd $SDK_DIR && bun link"
   exit 0
 fi
@@ -90,6 +113,7 @@ if [ "$SKIP_NPM" = false ]; then
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Bundling binary into npm package..."
     mkdir -p "$SDK_DIR/bin"
+    create_app_bundle "$BINARY" "$SDK_DIR/bin"
     cp "$BINARY" "$SDK_DIR/bin/darwinkit"
     chmod 755 "$SDK_DIR/bin/darwinkit"
 
@@ -99,7 +123,9 @@ if [ "$SKIP_NPM" = false ]; then
     bun run build
 
     # Update version to match release (sed instead of npm version — avoids bun node_modules crash)
-    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
+    # Strip leading 'v' prefix for npm semver compatibility
+    NPM_VERSION="${VERSION#v}"
+    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NPM_VERSION\"/" package.json
 
     # Build publish command
     PUBLISH_CMD="npm publish --access public"

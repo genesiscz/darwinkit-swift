@@ -22,6 +22,7 @@ import { LLM } from "./namespaces/llm.js";
 import { Contacts } from "./namespaces/contacts.js";
 import { Calendar } from "./namespaces/calendar.js";
 import { Reminders } from "./namespaces/reminders.js";
+import { Notifications } from "./namespaces/notifications.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -101,6 +102,7 @@ export class DarwinKit implements DarwinKitClient {
   readonly contacts: Contacts;
   readonly calendar: Calendar;
   readonly reminders: Reminders;
+  readonly notifications: Notifications;
 
   private transport = new Transport();
   private pending = new Map<string, PendingRequest>();
@@ -150,6 +152,7 @@ export class DarwinKit implements DarwinKitClient {
     this.contacts = new Contacts(this);
     this.calendar = new Calendar(this);
     this.reminders = new Reminders(this);
+    this.notifications = new Notifications(this);
   }
 
   get connected(): boolean {
@@ -367,6 +370,20 @@ export class DarwinKit implements DarwinKitClient {
       const params = msg.params as { paths: string[] };
       this.emit({ type: "filesChanged", paths: params.paths });
       this.icloud._notifyFilesChanged(params);
+      return;
+    }
+
+    // Notification interaction event
+    if (msg.method === "notifications.interaction") {
+      const params = msg.params as {
+        notification_identifier: string;
+        action_identifier: string;
+        user_text?: string;
+        user_info: Record<string, unknown>;
+        category_identifier: string;
+      };
+      this.emit({ type: "notificationInteraction", ...params });
+      this.notifications._notifyInteraction(params);
       return;
     }
 
