@@ -27,7 +27,7 @@ done
 BRANCH=$(git branch --show-current)
 if [ "$BRANCH" != "main" ]; then
   echo "Switching to main..."
-  git checkout main
+  git checkout main || exit 1
 fi
 
 echo "Fetching from original (0xMassi/darwinkit)..."
@@ -63,7 +63,7 @@ fi
 COMMIT_LIST=$(git log --format="- [\`%h\`](${ORIGINAL_REPO}/commit/%H) %s" HEAD..original/main)
 
 # Create a sync branch from current main
-SYNC_BRANCH="sync/upstream-$(date +%Y%m%d)"
+SYNC_BRANCH="sync/upstream-$(date +%Y%m%d-%H%M%S)"
 echo "Creating sync branch: $SYNC_BRANCH"
 git checkout -b "$SYNC_BRANCH" --no-track
 
