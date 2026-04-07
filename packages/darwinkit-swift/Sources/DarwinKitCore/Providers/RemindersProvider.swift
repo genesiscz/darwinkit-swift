@@ -353,12 +353,8 @@ public final class AppleRemindersProvider: RemindersProvider {
             )
         }
 
-        if let url = url {
-            if let existingNotes = reminder.notes, !existingNotes.isEmpty {
-                reminder.notes = existingNotes + "\n\nURL: \(url)"
-            } else {
-                reminder.notes = "URL: \(url)"
-            }
+        if let url = url, let urlObj = URL(string: url) {
+            reminder.url = urlObj
         }
 
         do {

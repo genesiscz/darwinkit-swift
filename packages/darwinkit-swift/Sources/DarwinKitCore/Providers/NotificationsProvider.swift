@@ -132,12 +132,12 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         return f
     }()
 
-    /// Lazily access UNUserNotificationCenter — throws if unavailable (e.g. unbundled CLI in query mode).
+    /// Lazily access UNUserNotificationCenter — crashes if unavailable (e.g. unbundled CLI without Info.plist).
     private func center() throws -> UNUserNotificationCenter {
         if let c = _center { return c }
         // UNUserNotificationCenter.current() requires a valid bundle proxy.
-        // For CLI binaries without Info.plist, this will throw NSInternalInconsistencyException.
-        // We catch it here to provide a clean error message.
+        // For CLI binaries without Info.plist, this throws NSInternalInconsistencyException
+        // which propagates to the caller as a crash — embed Info.plist via -sectcreate.
         let c = UNUserNotificationCenter.current()
         _center = c
         if !delegateSet {
