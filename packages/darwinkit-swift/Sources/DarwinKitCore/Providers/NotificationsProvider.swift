@@ -123,32 +123,20 @@ public protocol NotificationsProvider {
 // MARK: - Apple Implementation
 
 public final class AppleNotificationsProvider: NSObject, NotificationsProvider, UNUserNotificationCenterDelegate {
-    private var _center: UNUserNotificationCenter?
+    private let center: UNUserNotificationCenter
     private var interactionHandler: ((NotificationInteractionEvent) -> Void)?
-    private var delegateSet = false
     private let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
 
-    /// Lazily access UNUserNotificationCenter — crashes if unavailable (e.g. unbundled CLI without Info.plist).
-    private func center() throws -> UNUserNotificationCenter {
-        if let c = _center { return c }
-        // UNUserNotificationCenter.current() requires a valid bundle proxy.
-        // For CLI binaries without Info.plist, this throws NSInternalInconsistencyException
-        // which propagates to the caller as a crash — embed Info.plist via -sectcreate.
-        let c = UNUserNotificationCenter.current()
-        _center = c
-        if !delegateSet {
-            c.delegate = self
-            delegateSet = true
-        }
-        return c
-    }
-
+    /// Initialize and immediately set delegate so notification interactions are never missed.
+    /// UNUserNotificationCenter.current() requires a valid bundle proxy (Info.plist via -sectcreate).
     public override init() {
+        self.center = UNUserNotificationCenter.current()
         super.init()
+        center.delegate = self
     }
 
     public func setInteractionHandler(_ handler: @escaping (NotificationInteractionEvent) -> Void) {
@@ -162,7 +150,7 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         var granted = false
         var authError: Error?
 
-        let c = try center()
+        let c = center
 
         // Dispatch to main thread — macOS requires main thread for the permission dialog.
         DispatchQueue.main.async {
@@ -189,7 +177,7 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         let semaphore = DispatchSemaphore(value: 0)
         var result: UNNotificationSettings?
 
-        try center().getNotificationSettings { settings in
+        center.getNotificationSettings { settings in
             result = settings
             semaphore.signal()
         }
@@ -249,7 +237,7 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         let semaphore = DispatchSemaphore(value: 0)
         var sendError: Error?
 
-        try center().add(request) { error in
+        center.add(request) { error in
             sendError = error
             semaphore.signal()
         }
@@ -267,7 +255,7 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         let semaphore = DispatchSemaphore(value: 0)
         var requests: [UNNotificationRequest] = []
 
-        try center().getPendingNotificationRequests { reqs in
+        center.getPendingNotificationRequests { reqs in
             requests = reqs
             semaphore.signal()
         }
@@ -304,11 +292,11 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
     }
 
     public func removePending(identifiers: [String]) throws {
-        try center().removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 
     public func removeAllPending() throws {
-        try center().removeAllPendingNotificationRequests()
+        center.removeAllPendingNotificationRequests()
     }
 
     // MARK: - Delivered
@@ -317,7 +305,7 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         let semaphore = DispatchSemaphore(value: 0)
         var notifications: [UNNotification] = []
 
-        try center().getDeliveredNotifications { notifs in
+        center.getDeliveredNotifications { notifs in
             notifications = notifs
             semaphore.signal()
         }
@@ -338,11 +326,11 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
     }
 
     public func removeDelivered(identifiers: [String]) throws {
-        try center().removeDeliveredNotifications(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
     public func removeAllDelivered() throws {
-        try center().removeAllDeliveredNotifications()
+        center.removeAllDeliveredNotifications()
     }
 
     // MARK: - Categories
@@ -355,7 +343,7 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         let semaphore = DispatchSemaphore(value: 0)
         var existingCategories: Set<UNNotificationCategory> = []
 
-        try center().getNotificationCategories { cats in
+        center.getNotificationCategories { cats in
             existingCategories = cats
             semaphore.signal()
         }
@@ -389,7 +377,7 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         }
 
         existingCategories.insert(category)
-        try center().setNotificationCategories(existingCategories)
+        center.setNotificationCategories(existingCategories)
     }
 
     // MARK: - UNUserNotificationCenterDelegate

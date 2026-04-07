@@ -396,8 +396,8 @@ public final class AppleRemindersProvider: RemindersProvider {
     ) throws -> [ReminderInfo] {
         try ensureAuthorized()
 
-        let start = startDate.flatMap { parseDate($0) }
-        let end = endDate.flatMap { parseDate($0) }
+        let start = try validateOptionalDate(startDate, param: "start_date")
+        let end = try validateOptionalDate(endDate, param: "end_date")
         let calendars = resolveCalendars(listIdentifiers)
 
         let predicate = store.predicateForIncompleteReminders(
@@ -412,8 +412,8 @@ public final class AppleRemindersProvider: RemindersProvider {
     ) throws -> [ReminderInfo] {
         try ensureAuthorized()
 
-        let start = startDate.flatMap { parseDate($0) }
-        let end = endDate.flatMap { parseDate($0) }
+        let start = try validateOptionalDate(startDate, param: "start_date")
+        let end = try validateOptionalDate(endDate, param: "end_date")
         let calendars = resolveCalendars(listIdentifiers)
 
         let predicate = store.predicateForCompletedReminders(
@@ -421,5 +421,13 @@ public final class AppleRemindersProvider: RemindersProvider {
         )
 
         return fetchRemindersSync(matching: predicate).map { mapReminder($0) }
+    }
+
+    private func validateOptionalDate(_ dateStr: String?, param: String) throws -> Date? {
+        guard let dateStr = dateStr else { return nil }
+        guard let date = parseDate(dateStr) else {
+            throw JsonRpcError.invalidParams("Invalid ISO 8601 date for \(param): \(dateStr)")
+        }
+        return date
     }
 }
