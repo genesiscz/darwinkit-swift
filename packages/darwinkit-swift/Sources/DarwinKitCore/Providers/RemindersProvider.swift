@@ -353,7 +353,10 @@ public final class AppleRemindersProvider: RemindersProvider {
             )
         }
 
-        if let url = url, let urlObj = URL(string: url) {
+        if let url = url {
+            guard let urlObj = URL(string: url) else {
+                throw JsonRpcError.invalidParams("Invalid url: \(url)")
+            }
             reminder.url = urlObj
         }
 

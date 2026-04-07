@@ -14,6 +14,21 @@ public struct NotificationSettingsInfo {
     public let criticalAlertSetting: String
     public let alertStyle: String
 
+    public init(
+        authorizationStatus: String, soundSetting: String, badgeSetting: String,
+        alertSetting: String, notificationCenterSetting: String, lockScreenSetting: String,
+        criticalAlertSetting: String, alertStyle: String
+    ) {
+        self.authorizationStatus = authorizationStatus
+        self.soundSetting = soundSetting
+        self.badgeSetting = badgeSetting
+        self.alertSetting = alertSetting
+        self.notificationCenterSetting = notificationCenterSetting
+        self.lockScreenSetting = lockScreenSetting
+        self.criticalAlertSetting = criticalAlertSetting
+        self.alertStyle = alertStyle
+    }
+
     public func toDict() -> [String: Any] {
         [
             "authorization_status": authorizationStatus,
@@ -37,6 +52,21 @@ public struct PendingNotificationInfo {
     public let categoryIdentifier: String?
     public let triggerType: String?
     public let nextTriggerDate: String?
+
+    public init(
+        identifier: String, title: String, body: String, subtitle: String?,
+        threadIdentifier: String?, categoryIdentifier: String?,
+        triggerType: String?, nextTriggerDate: String?
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.body = body
+        self.subtitle = subtitle
+        self.threadIdentifier = threadIdentifier
+        self.categoryIdentifier = categoryIdentifier
+        self.triggerType = triggerType
+        self.nextTriggerDate = nextTriggerDate
+    }
 
     public func toDict() -> [String: Any] {
         var dict: [String: Any] = [
@@ -62,6 +92,19 @@ public struct DeliveredNotificationInfo {
     public let categoryIdentifier: String?
     public let date: String
 
+    public init(
+        identifier: String, title: String, body: String, subtitle: String?,
+        threadIdentifier: String?, categoryIdentifier: String?, date: String
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.body = body
+        self.subtitle = subtitle
+        self.threadIdentifier = threadIdentifier
+        self.categoryIdentifier = categoryIdentifier
+        self.date = date
+    }
+
     public func toDict() -> [String: Any] {
         var dict: [String: Any] = [
             "identifier": identifier,
@@ -82,6 +125,17 @@ public struct NotificationInteractionEvent {
     public let userText: String?
     public let userInfo: [String: Any]
     public let categoryIdentifier: String
+
+    public init(
+        notificationIdentifier: String, actionIdentifier: String,
+        userText: String?, userInfo: [String: Any], categoryIdentifier: String
+    ) {
+        self.notificationIdentifier = notificationIdentifier
+        self.actionIdentifier = actionIdentifier
+        self.userText = userText
+        self.userInfo = userInfo
+        self.categoryIdentifier = categoryIdentifier
+    }
 
     public func toDict() -> [String: Any] {
         var dict: [String: Any] = [
@@ -401,19 +455,11 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
             userText = textResponse.userText
         }
 
-        // Convert [AnyHashable: Any] to [String: Any], filtering non-serializable values
+        // Convert [AnyHashable: Any] to [String: Any], recursively sanitizing values
         var userInfo: [String: Any] = [:]
         for (key, value) in response.notification.request.content.userInfo {
             guard let stringKey = key as? String else { continue }
-            if value is String || value is Int || value is Double || value is Bool {
-                userInfo[stringKey] = value
-            } else if let array = value as? [Any] {
-                userInfo[stringKey] = array
-            } else if let dict = value as? [String: Any] {
-                userInfo[stringKey] = dict
-            } else {
-                userInfo[stringKey] = String(describing: value)
-            }
+            userInfo[stringKey] = sanitizeUserInfoValue(value)
         }
 
         let event = NotificationInteractionEvent(
@@ -429,6 +475,24 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
     }
 
     // MARK: - Mapping Helpers
+
+    private func sanitizeUserInfoValue(_ value: Any) -> Any {
+        switch value {
+        case let v as String: return v
+        case let v as Int: return v
+        case let v as Double: return v
+        case let v as Bool: return v
+        case let v as [Any]: return v.map(sanitizeUserInfoValue)
+        case let v as [String: Any]:
+            return Dictionary(uniqueKeysWithValues: v.map { ($0, sanitizeUserInfoValue($1)) })
+        case let v as [AnyHashable: Any]:
+            return Dictionary(uniqueKeysWithValues: v.compactMap { key, val -> (String, Any)? in
+                guard let k = key as? String else { return nil }
+                return (k, sanitizeUserInfoValue(val))
+            })
+        default: return String(describing: value)
+        }
+    }
 
     private func mapAuthorizationStatus(_ status: UNAuthorizationStatus) -> String {
         switch status {
