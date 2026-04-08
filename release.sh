@@ -2,31 +2,24 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-NPM_ONLY=false
-SKIP_NPM=false
 BUILD_ONLY=false
 VERSION=""
-NPM_OTP=""
 
 # Parse flags
 for arg in "$@"; do
   case "$arg" in
-    --npm-only)    NPM_ONLY=true ;;
-    --skip-npm)    SKIP_NPM=true ;;
     --build-only)  BUILD_ONLY=true ;;
-    --otp=*)       NPM_OTP="${arg#--otp=}" ;;
     --*)           echo "Unknown flag: $arg"; exit 1 ;;
     *)             VERSION="$arg" ;;
   esac
 done
 
 if [ "$BUILD_ONLY" = false ] && [ -z "$VERSION" ]; then
-  echo "Usage: ./release.sh <version> [--npm-only] [--skip-npm] [--build-only] [--otp=CODE]"
+  echo "Usage: ./release.sh <version> [--build-only]"
   echo ""
-  echo "  --build-only Build Swift binary + TS SDK only (no release, no publish)"
-  echo "  --npm-only   Only publish to npm (skip GitHub release)"
-  echo "  --skip-npm   Only create GitHub release (skip npm publish)"
-  echo "  --otp=CODE   npm OTP code for 2FA (or pass NPM_PUBLISH_TOKEN env var)"
+  echo "  --build-only  Build Swift binary + TS SDK only (no GitHub release)"
+  echo ""
+  echo "npm publish is automatic via GitHub Actions when a release is created."
   exit 1
 fi
 
@@ -36,12 +29,12 @@ TARBALL="darwinkit-macos-arm64.tar.gz"
 GH_REPO="genesiscz/darwinkit-swift"
 
 # ── Build binary (arm64 only) ──────────────────────────
-if [ "$NPM_ONLY" = false ]; then
+{
   echo "Building arm64 binary..."
   cd "$SWIFT_DIR"
   swift build -c release --arch arm64
   cd "$SCRIPT_DIR"
-fi
+}
 
 BINARY="$SWIFT_DIR/.build/arm64-apple-macosx/release/darwinkit"
 
@@ -92,9 +85,22 @@ if [ "$BUILD_ONLY" = true ]; then
 fi
 
 # ── GitHub release ──────────────────────────────────────
-if [ "$NPM_ONLY" = false ]; then
+if [ "$BUILD_ONLY" = false ]; then
   echo "Creating tarball..."
-  tar -czf "$SCRIPT_DIR/$TARBALL" -C "$SWIFT_DIR/.build/apple/Products/Release" darwinkit
+  tar -czf "$SCRIPT_DIR/$TARBALL" -C "$SWIFT_DIR/.build/arm64-apple-macosx/release" darwinkit
+
+  # Check if release already exists
+  if gh release view "$VERSION" --repo "$GH_REPO" &>/dev/null; then
+    read -p "Release $VERSION already exists. Delete and recreate? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      gh release delete "$VERSION" --repo "$GH_REPO" --yes
+      git push origin --delete "$VERSION" 2>/dev/null || true
+    else
+      echo "Aborted."
+      exit 1
+    fi
+  fi
 
   echo "Creating GitHub release $VERSION..."
   gh release create "$VERSION" "$SCRIPT_DIR/$TARBALL" \
@@ -106,40 +112,5 @@ if [ "$NPM_ONLY" = false ]; then
   echo "GitHub release $VERSION created."
 fi
 
-# ── npm publish ─────────────────────────────────────────
-if [ "$SKIP_NPM" = false ]; then
-  read -p "Publish @genesiscz/darwinkit@$VERSION to npm? [y/N] " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Bundling binary into npm package..."
-    mkdir -p "$SDK_DIR/bin"
-    create_app_bundle "$BINARY" "$SDK_DIR/bin"
-    cp "$BINARY" "$SDK_DIR/bin/darwinkit"
-    chmod 755 "$SDK_DIR/bin/darwinkit"
-
-    echo "Building TypeScript SDK..."
-    cd "$SDK_DIR"
-    bun install --frozen-lockfile 2>/dev/null || bun install
-    bun run build
-
-    # Update version to match release (sed instead of npm version — avoids bun node_modules crash)
-    # Strip leading 'v' prefix for npm semver compatibility
-    NPM_VERSION="${VERSION#v}"
-    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NPM_VERSION\"/" package.json
-
-    # Build publish command
-    PUBLISH_CMD="npm publish --access public"
-    if [ -n "$NPM_OTP" ]; then
-      PUBLISH_CMD="$PUBLISH_CMD --otp $NPM_OTP"
-    fi
-
-    echo "Publishing to npm..."
-    $PUBLISH_CMD
-
-    echo "Published @genesiscz/darwinkit@$VERSION to npm."
-  else
-    echo "Skipping npm publish."
-  fi
-fi
-
-echo "Done."
+# ── npm publish (handled by GitHub Actions on release) ──
+echo "Done. npm publish will be triggered automatically by GitHub Actions."
