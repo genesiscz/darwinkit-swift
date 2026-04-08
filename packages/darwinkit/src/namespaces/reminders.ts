@@ -151,6 +151,16 @@ export class Reminders {
     );
   }
 
+  requestFullAccess(options?: {
+    timeout?: number;
+  }): Promise<RemindersAuthorizedResult> {
+    return this.client.call(
+      "reminders.request_full_access",
+      {} as Record<string, never>,
+      options,
+    );
+  }
+
   // Prepare methods for batch API
   prepareAuthorized(): PreparedCall<"reminders.authorized"> {
     return {

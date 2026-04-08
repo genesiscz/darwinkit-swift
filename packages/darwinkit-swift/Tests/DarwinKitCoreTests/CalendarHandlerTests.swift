@@ -9,6 +9,7 @@ struct MockCalendarProvider: CalendarProvider {
     var events: [CalendarEventInfo] = []
     var authResult = CalendarAuthorizationResult(status: "fullAccess", authorized: true)
     var shouldThrow: JsonRpcError? = nil
+    var savedResult = CalendarSaveResult(success: true, identifier: "new-1", error: nil)
 
     func checkAuthorization() throws -> CalendarAuthorizationResult {
         if let err = shouldThrow { throw err }
@@ -35,6 +36,88 @@ struct MockCalendarProvider: CalendarProvider {
         }
         return event
     }
+
+    func saveEvent(
+        id: String?, calendarIdentifier: String, title: String,
+        startDate: String, endDate: String, notes: String?,
+        location: String?, url: String?, isAllDay: Bool?,
+        availability: String?, alarms: [Int]?,
+        span: String, commit: Bool
+    ) throws -> CalendarSaveResult {
+        if let err = shouldThrow { throw err }
+        return savedResult
+    }
+
+    func removeEvent(identifier: String, span: String, commit: Bool) throws -> Bool {
+        if let err = shouldThrow { throw err }
+        return true
+    }
+
+    func getCalendarItem(identifier: String) throws -> [String: Any] {
+        if let err = shouldThrow { throw err }
+        return ["type": "event", "item": [:] as [String: Any]]
+    }
+
+    func getCalendarItemsByExternalId(externalIdentifier: String) throws -> [[String: Any]] {
+        if let err = shouldThrow { throw err }
+        return []
+    }
+
+    func getSources() throws -> [SourceInfo] {
+        if let err = shouldThrow { throw err }
+        return []
+    }
+
+    func getSource(identifier: String) throws -> SourceInfo {
+        if let err = shouldThrow { throw err }
+        return SourceInfo(identifier: identifier, title: "Local", sourceType: "local")
+    }
+
+    func getDelegateSources() throws -> [SourceInfo] {
+        if let err = shouldThrow { throw err }
+        return []
+    }
+
+    func saveCalendar(
+        id: String?, title: String, sourceIdentifier: String,
+        entityType: String?, colorHex: String?, commit: Bool
+    ) throws -> CalendarSaveResult {
+        if let err = shouldThrow { throw err }
+        return savedResult
+    }
+
+    func removeCalendar(identifier: String, commit: Bool) throws -> Bool {
+        if let err = shouldThrow { throw err }
+        return true
+    }
+
+    func defaultCalendarForNewEvents() throws -> CalendarInfo? {
+        if let err = shouldThrow { throw err }
+        return calendars.first
+    }
+
+    func defaultCalendarForNewReminders() throws -> CalendarInfo? {
+        if let err = shouldThrow { throw err }
+        return nil
+    }
+
+    func commit() throws {
+        if let err = shouldThrow { throw err }
+    }
+
+    func reset() {}
+
+    func refreshSources() {}
+
+    func requestWriteOnlyAccess() throws -> CalendarAuthorizationResult {
+        if let err = shouldThrow { throw err }
+        return CalendarAuthorizationResult(status: "writeOnly", authorized: false)
+    }
+
+    func requestFullAccess() throws -> CalendarAuthorizationResult {
+        if let err = shouldThrow { throw err }
+        return authResult
+    }
 }
 
 // MARK: - Test Helpers
@@ -45,7 +128,8 @@ private func makeSampleCalendar(
 ) -> CalendarInfo {
     CalendarInfo(
         identifier: identifier, title: title, type: "local",
-        color: "#FF0000", isImmutable: false, allowsContentModifications: true
+        color: "#FF0000", isImmutable: false, allowsContentModifications: true,
+        source: "iCloud"
     )
 }
 
@@ -61,7 +145,9 @@ private func makeSampleEvent(
         isAllDay: false, location: "Conference Room A",
         notes: "Discuss quarterly goals",
         calendarIdentifier: calendarIdentifier,
-        calendarTitle: "Personal", url: nil
+        calendarTitle: "Personal", url: nil,
+        availability: "busy", hasAlarms: false, alarms: [],
+        externalIdentifier: nil
     )
 }
 
@@ -223,11 +309,19 @@ struct CalendarHandlerTests {
 
     // MARK: - Method registration
 
-    @Test("handler registers all 4 calendar methods")
+    @Test("handler registers all 19 calendar methods")
     func methodRegistration() {
         let handler = CalendarHandler(provider: MockCalendarProvider())
         let expected: Set<String> = [
-            "calendar.authorized", "calendar.calendars", "calendar.events", "calendar.event"
+            "calendar.authorized", "calendar.calendars", "calendar.events", "calendar.event",
+            "calendar.save_event", "calendar.remove_event",
+            "calendar.calendar_item", "calendar.calendar_items_external",
+            "calendar.sources", "calendar.source", "calendar.delegate_sources",
+            "calendar.save_calendar", "calendar.remove_calendar",
+            "calendar.default_calendar_events", "calendar.default_calendar_reminders",
+            "calendar.commit", "calendar.reset", "calendar.refresh_sources",
+            "calendar.request_write_only_access",
+            "calendar.request_full_access",
         ]
         #expect(Set(handler.methods) == expected)
     }
@@ -244,5 +338,17 @@ struct CalendarHandlerTests {
         #expect(throws: JsonRpcError.self) {
             try handler.handle(request)
         }
+    }
+
+    // MARK: - calendar.request_full_access
+
+    @Test("request_full_access returns authorization result")
+    func requestFullAccess() throws {
+        let handler = CalendarHandler(provider: MockCalendarProvider())
+        let request = makeRequest(method: "calendar.request_full_access")
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["status"] as? String == "fullAccess")
+        #expect(result["authorized"] as? Bool == true)
     }
 }

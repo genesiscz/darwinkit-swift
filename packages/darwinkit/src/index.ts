@@ -6,6 +6,7 @@ export type {
   LogLevel,
 } from "./client.js";
 export { DarwinKitError, ErrorCodes } from "./errors.js";
+export { ReminderPriority, formatReminderPriority } from "./types.js";
 export type { ErrorCode } from "./errors.js";
 export type { DarwinKitEvent, EventMap, EventType } from "./events.js";
 export { ensureBinary } from "./binary.js";
@@ -175,13 +176,36 @@ export type {
   CalendarEventsParams,
   CalendarEventsResult,
   CalendarEventParams,
+  CalendarSaveResult,
+  CalendarOkResult,
+  CalendarSaveEventParams,
+  CalendarRemoveEventParams,
+  CalendarItemParams,
+  CalendarItemResult,
+  CalendarItemsExternalParams,
+  CalendarItemsExternalResult,
+  CalendarSourcesResult,
+  CalendarSourceParams,
+  SourceInfo,
+  CalendarSaveCalendarParams,
+  CalendarRemoveCalendarParams,
   // Reminders
   ReminderListInfo,
   ReminderInfo,
+  ReminderPriorityLevel,
+  ReminderAlarmLocation,
+  ReminderAlarmInfo,
+  ReminderAlarmInput,
   RemindersAuthorizedResult,
   RemindersListsResult,
   RemindersItemsParams,
   RemindersItemsResult,
+  RemindersSaveItemParams,
+  RemindersSaveResult,
+  RemindersRemoveItemParams,
+  RemindersCompleteItemParams,
+  RemindersIncompleteParams,
+  RemindersCompletedParams,
   // Notifications (system)
   ReadyNotification,
   FilesChangedNotification,

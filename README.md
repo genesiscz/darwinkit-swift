@@ -92,10 +92,13 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 | `calendar.refresh_sources` | Refresh calendar sources | EventKit |
 | `calendar.default_calendar_events` | Get default events calendar | EventKit |
 | `calendar.default_calendar_reminders` | Get default reminders calendar | EventKit |
+| `calendar.request_write_only_access` | Request write-only calendar access | EventKit |
+| `calendar.request_full_access` | Request full calendar access (upgrade from writeOnly) | EventKit |
 | `reminders.authorized` | Check/request reminders access | EventKit |
+| `reminders.request_full_access` | Request full reminders access (upgrade from limited) | EventKit |
 | `reminders.lists` | List reminder lists | EventKit |
-| `reminders.items` | Fetch reminders | EventKit |
-| `reminders.save_item` | Create or update reminder | EventKit |
+| `reminders.items` | Fetch reminders (with alarms, flagged state) | EventKit |
+| `reminders.save_item` | Create or update reminder (priority, flagged, alarms) | EventKit |
 | `reminders.remove_item` | Delete reminder | EventKit |
 | `reminders.complete_item` | Mark reminder as completed | EventKit |
 | `reminders.incomplete` | Fetch incomplete reminders (with date range) | EventKit |
@@ -128,7 +131,7 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 ### GitHub Releases
 
 ```bash
-curl -L https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-universal.tar.gz | tar xz
+curl -L https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-arm64.tar.gz | tar xz
 sudo mv darwinkit /usr/local/bin/
 ```
 
@@ -194,10 +197,27 @@ const sounds = await dk.sound.classify({ path: "/tmp/audio.wav" })
 // LLM — on-device text generation (macOS 26+, Apple Intelligence)
 const response = await dk.llm.generate({ prompt: "Summarize this meeting" })
 
-// Contacts, Calendar, Reminders — read-only access
+// Contacts
 const contacts = await dk.contacts.list({ limit: 10 })
+
+// Calendar — full read/write access
+await dk.calendar.requestFullAccess() // upgrade from writeOnly if needed
 const events = await dk.calendar.events({ start_date: "2026-03-23", end_date: "2026-03-30" })
+
+// Reminders — with priority, flagged state, and alarms
+import { ReminderPriority, formatReminderPriority } from "@genesiscz/darwinkit"
 const reminders = await dk.reminders.items({ filter: "incomplete" })
+for (const r of reminders.reminders) {
+  console.log(r.title, formatReminderPriority(r.priority), r.is_flagged, r.alarms)
+}
+await dk.reminders.saveItem({
+  calendar_identifier: "list-id",
+  title: "Review PR",
+  priority: ReminderPriority.high,
+  flagged: true,
+  url: "https://github.com/org/repo/pull/42",
+  alarms: [{ relative_offset: -3600 }], // 1 hour before
+})
 
 dk.close()
 ```
@@ -1138,11 +1158,11 @@ swift test                     # Run all 74 tests
 swift test --filter CoreML     # Run CoreML tests only
 ```
 
-### Build universal binary (arm64 + x86_64)
+### Build release binary
 
 ```bash
 cd packages/darwinkit-swift
-swift build -c release --arch arm64 --arch x86_64
+swift build -c release --arch arm64
 ```
 
 ## Roadmap

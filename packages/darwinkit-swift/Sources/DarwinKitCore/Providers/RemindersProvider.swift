@@ -1,3 +1,4 @@
+import CoreLocation
 import EventKit
 import Foundation
 
@@ -21,6 +22,38 @@ public struct ReminderListInfo {
     }
 }
 
+public struct AlarmLocationInfo {
+    public let title: String
+    public let latitude: Double?
+    public let longitude: Double?
+    public let radius: Double?
+
+    public func toDict() -> [String: Any] {
+        var dict: [String: Any] = ["title": title]
+        if let latitude = latitude { dict["latitude"] = latitude }
+        if let longitude = longitude { dict["longitude"] = longitude }
+        if let radius = radius { dict["radius"] = radius }
+        return dict
+    }
+}
+
+public struct AlarmInfo {
+    public let type: String  // "time" | "location"
+    public let relativeOffset: Double?  // seconds before event (negative = before)
+    public let absoluteDate: String?  // ISO 8601
+    public let location: AlarmLocationInfo?
+    public let proximity: String?  // "enter" | "leave" | "none"
+
+    public func toDict() -> [String: Any] {
+        var dict: [String: Any] = ["type": type]
+        if let relativeOffset = relativeOffset { dict["relative_offset"] = relativeOffset }
+        if let absoluteDate = absoluteDate { dict["absolute_date"] = absoluteDate }
+        if let location = location { dict["location"] = location.toDict() }
+        if let proximity = proximity { dict["proximity"] = proximity }
+        return dict
+    }
+}
+
 public struct ReminderInfo {
     public let identifier: String
     public let title: String
@@ -32,6 +65,8 @@ public struct ReminderInfo {
     public let notes: String?
     public let url: String?             // URL string or nil
     public let hasAlarms: Bool
+    public let alarms: [AlarmInfo]
+    public let isFlagged: Bool
     public let listIdentifier: String
     public let listTitle: String
     public let externalIdentifier: String?
@@ -40,7 +75,8 @@ public struct ReminderInfo {
         identifier: String, title: String, isCompleted: Bool,
         completionDate: String?, dueDate: String?, startDate: String?,
         priority: Int, notes: String?, url: String?,
-        hasAlarms: Bool, listIdentifier: String, listTitle: String,
+        hasAlarms: Bool, alarms: [AlarmInfo] = [], isFlagged: Bool = false,
+        listIdentifier: String, listTitle: String,
         externalIdentifier: String?
     ) {
         self.identifier = identifier
@@ -53,6 +89,8 @@ public struct ReminderInfo {
         self.notes = notes
         self.url = url
         self.hasAlarms = hasAlarms
+        self.alarms = alarms
+        self.isFlagged = isFlagged
         self.listIdentifier = listIdentifier
         self.listTitle = listTitle
         self.externalIdentifier = externalIdentifier
@@ -65,6 +103,8 @@ public struct ReminderInfo {
             "is_completed": isCompleted,
             "priority": priority,
             "has_alarms": hasAlarms,
+            "alarms": alarms.map { $0.toDict() },
+            "is_flagged": isFlagged,
             "list_identifier": listIdentifier,
             "list_title": listTitle,
         ]
@@ -110,6 +150,7 @@ public protocol RemindersProvider {
         id: String?, calendarIdentifier: String, title: String,
         dueDate: String?, startDate: String?, priority: Int?,
         notes: String?, completed: Bool?, url: String?,
+        flagged: Bool?, alarms: [[String: Any]]?,
         commit: Bool
     ) throws -> CalendarSaveResult
 
@@ -128,6 +169,9 @@ public protocol RemindersProvider {
     func fetchCompletedReminders(
         startDate: String?, endDate: String?, listIdentifiers: [String]?
     ) throws -> [ReminderInfo]
+
+    /// Request full access to reminders (can upgrade from limited access).
+    func requestFullAccess() throws -> RemindersAuthorizationResult
 }
 
 // MARK: - Apple Implementation
@@ -262,6 +306,42 @@ public final class AppleRemindersProvider: RemindersProvider {
             completionDateStr = isoFormatter.string(from: date)
         }
 
+        let alarmInfos: [AlarmInfo] = (reminder.alarms ?? []).map { alarm in
+            if let structuredLocation = alarm.structuredLocation {
+                let locInfo = AlarmLocationInfo(
+                    title: structuredLocation.title ?? "",
+                    latitude: structuredLocation.geoLocation?.coordinate.latitude,
+                    longitude: structuredLocation.geoLocation?.coordinate.longitude,
+                    radius: structuredLocation.radius > 0 ? structuredLocation.radius : nil
+                )
+                let proximityStr: String
+                switch alarm.proximity {
+                case .enter: proximityStr = "enter"
+                case .leave: proximityStr = "leave"
+                default: proximityStr = "none"
+                }
+                return AlarmInfo(
+                    type: "location",
+                    relativeOffset: nil,
+                    absoluteDate: nil,
+                    location: locInfo,
+                    proximity: proximityStr
+                )
+            } else {
+                var absDateStr: String? = nil
+                if let absDate = alarm.absoluteDate {
+                    absDateStr = isoFormatter.string(from: absDate)
+                }
+                return AlarmInfo(
+                    type: "time",
+                    relativeOffset: alarm.relativeOffset,
+                    absoluteDate: absDateStr,
+                    location: nil,
+                    proximity: nil
+                )
+            }
+        }
+
         return ReminderInfo(
             identifier: reminder.calendarItemIdentifier,
             title: reminder.title ?? "",
@@ -273,6 +353,8 @@ public final class AppleRemindersProvider: RemindersProvider {
             notes: reminder.notes,
             url: reminder.url?.absoluteString,
             hasAlarms: reminder.hasAlarms,
+            alarms: alarmInfos,
+            isFlagged: false,  // EKReminder doesn't expose flagged state on macOS
             listIdentifier: reminder.calendar.calendarIdentifier,
             listTitle: reminder.calendar.title,
             externalIdentifier: reminder.calendarItemExternalIdentifier
@@ -308,6 +390,7 @@ public final class AppleRemindersProvider: RemindersProvider {
         id: String?, calendarIdentifier: String, title: String,
         dueDate: String?, startDate: String?, priority: Int?,
         notes: String?, completed: Bool?, url: String?,
+        flagged: Bool?, alarms: [[String: Any]]?,
         commit: Bool
     ) throws -> CalendarSaveResult {
         try ensureAuthorized()
@@ -363,6 +446,37 @@ public final class AppleRemindersProvider: RemindersProvider {
                 throw JsonRpcError.invalidParams("Invalid url: \(url)")
             }
             reminder.url = urlObj
+        }
+
+        // Note: EKReminder doesn't expose flagged state on macOS.
+        // The flagged param is accepted but ignored until Apple adds API support.
+        _ = flagged
+
+        if let alarms = alarms {
+            // Clear existing alarms before setting new ones
+            reminder.alarms?.forEach { reminder.removeAlarm($0) }
+
+            for alarmDict in alarms {
+                if let offset = alarmDict["relative_offset"] as? Double {
+                    let alarm = EKAlarm(relativeOffset: offset)
+                    reminder.addAlarm(alarm)
+                } else if let locationDict = alarmDict["location"] as? [String: Any],
+                          let title = locationDict["title"] as? String {
+                    let structuredLocation = EKStructuredLocation(title: title)
+                    if let lat = locationDict["latitude"] as? Double,
+                       let lon = locationDict["longitude"] as? Double {
+                        structuredLocation.geoLocation = CLLocation(latitude: lat, longitude: lon)
+                    }
+                    if let radius = locationDict["radius"] as? Double {
+                        structuredLocation.radius = radius
+                    }
+                    let alarm = EKAlarm()
+                    alarm.structuredLocation = structuredLocation
+                    let proximityStr = alarmDict["proximity"] as? String ?? "enter"
+                    alarm.proximity = proximityStr == "leave" ? .leave : .enter
+                    reminder.addAlarm(alarm)
+                }
+            }
         }
 
         do {
@@ -437,5 +551,47 @@ public final class AppleRemindersProvider: RemindersProvider {
             throw JsonRpcError.invalidParams("Invalid ISO 8601 date for \(param): \(dateStr)")
         }
         return date
+    }
+
+    public func requestFullAccess() throws -> RemindersAuthorizationResult {
+        let previousStatus = EKEventStore.authorizationStatus(for: .reminder)
+        let semaphore = DispatchSemaphore(value: 0)
+
+        if #available(macOS 14, *) {
+            store.requestFullAccessToReminders { _, _ in
+                semaphore.signal()
+            }
+        } else {
+            store.requestAccess(to: .reminder) { _, _ in
+                semaphore.signal()
+            }
+        }
+
+        semaphore.wait()
+
+        // When upgrading access, macOS shows a system dialog but fires
+        // the callback immediately. Poll briefly to catch the user's response.
+        if previousStatus != .notDetermined && previousStatus != .fullAccess {
+            for _ in 0..<30 {  // up to 15 seconds
+                let current = EKEventStore.authorizationStatus(for: .reminder)
+                if current != previousStatus {
+                    return remindersAuthResult(from: current)
+                }
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+        }
+
+        return remindersAuthResult(from: EKEventStore.authorizationStatus(for: .reminder))
+    }
+
+    private func remindersAuthResult(from status: EKAuthorizationStatus) -> RemindersAuthorizationResult {
+        let statusStr: String
+        switch status {
+        case .fullAccess: statusStr = "fullAccess"
+        case .denied: statusStr = "denied"
+        case .restricted: statusStr = "restricted"
+        default: statusStr = "notDetermined"
+        }
+        return RemindersAuthorizationResult(status: statusStr, authorized: status == .fullAccess)
     }
 }

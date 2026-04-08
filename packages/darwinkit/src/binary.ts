@@ -12,7 +12,7 @@ const BINARY_NAME = "darwinkit";
 const APP_BUNDLE_PATH = "DarwinKit.app/Contents/MacOS/darwinkit";
 const CACHE_DIR = join(homedir(), ".cache", "darwinkit");
 const RELEASE_URL =
-  "https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-universal.tar.gz";
+  "https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-arm64.tar.gz";
 const REPO_URL = "https://github.com/genesiscz/darwinkit-swift.git";
 
 /** Resolve the directory where this module lives (works in both ESM and CJS). */
@@ -84,7 +84,7 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
   throw new Error(
     "Could not find or install darwinkit binary.\n" +
       "Install it manually:\n" +
-      "  curl -L https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-universal.tar.gz | tar xz -C ~/.local/bin/\n" +
+      "  curl -L https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-arm64.tar.gz | tar xz -C ~/.local/bin/\n" +
       "Or set the binary path:\n" +
       "  new DarwinKit({ binary: '/path/to/darwinkit' })",
   );
@@ -123,7 +123,7 @@ async function buildFromSource(outputPath: string): Promise<string> {
       stdio: "pipe",
     });
 
-    execSync("swift build -c release --arch arm64 --arch x86_64", {
+    execSync("swift build -c release --arch arm64", {
       cwd: join(tmpDir, "darwinkit-swift", "packages", "darwinkit-swift"),
       stdio: "pipe",
       timeout: 300_000, // 5 min build timeout
@@ -135,9 +135,8 @@ async function buildFromSource(outputPath: string): Promise<string> {
       "packages",
       "darwinkit-swift",
       ".build",
-      "apple",
-      "Products",
-      "Release",
+      "arm64-apple-macosx",
+      "release",
       "darwinkit",
     );
     const { copyFileSync } = await import("node:fs");

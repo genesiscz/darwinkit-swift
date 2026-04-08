@@ -212,6 +212,9 @@ public protocol CalendarProvider {
 
     /// Request write-only access to events.
     func requestWriteOnlyAccess() throws -> CalendarAuthorizationResult
+
+    /// Request full access to events (can upgrade from writeOnly).
+    func requestFullAccess() throws -> CalendarAuthorizationResult
 }
 
 // MARK: - Apple Implementation
@@ -686,5 +689,48 @@ public final class AppleCalendarProvider: CalendarProvider {
         semaphore.wait()
         let status = granted ? "writeOnly" : "denied"
         return CalendarAuthorizationResult(status: status, authorized: granted)
+    }
+
+    public func requestFullAccess() throws -> CalendarAuthorizationResult {
+        let previousStatus = EKEventStore.authorizationStatus(for: .event)
+        let semaphore = DispatchSemaphore(value: 0)
+
+        if #available(macOS 14, *) {
+            store.requestFullAccessToEvents { _, _ in
+                semaphore.signal()
+            }
+        } else {
+            store.requestAccess(to: .event) { _, _ in
+                semaphore.signal()
+            }
+        }
+
+        semaphore.wait()
+
+        // When upgrading from writeOnly, macOS shows a system dialog but fires
+        // the callback immediately. Poll briefly to catch the user's response.
+        if previousStatus == .writeOnly {
+            for _ in 0..<30 {  // up to 15 seconds
+                let current = EKEventStore.authorizationStatus(for: .event)
+                if current != previousStatus {
+                    return calendarAuthResult(from: current)
+                }
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+        }
+
+        return calendarAuthResult(from: EKEventStore.authorizationStatus(for: .event))
+    }
+
+    private func calendarAuthResult(from status: EKAuthorizationStatus) -> CalendarAuthorizationResult {
+        let statusStr: String
+        switch status {
+        case .fullAccess: statusStr = "fullAccess"
+        case .writeOnly: statusStr = "writeOnly"
+        case .denied: statusStr = "denied"
+        case .restricted: statusStr = "restricted"
+        default: statusStr = "notDetermined"
+        }
+        return CalendarAuthorizationResult(status: statusStr, authorized: status == .fullAccess)
     }
 }

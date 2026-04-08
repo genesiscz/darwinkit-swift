@@ -9,6 +9,7 @@ public final class RemindersHandler: MethodHandler {
             "reminders.authorized", "reminders.lists", "reminders.items",
             "reminders.save_item", "reminders.remove_item", "reminders.complete_item",
             "reminders.incomplete", "reminders.completed",
+            "reminders.request_full_access",
         ]
     }
 
@@ -34,6 +35,8 @@ public final class RemindersHandler: MethodHandler {
             return try handleIncomplete(request)
         case "reminders.completed":
             return try handleCompleted(request)
+        case "reminders.request_full_access":
+            return try handleRequestFullAccess(request)
         default:
             throw JsonRpcError.methodNotFound(request.method)
         }
@@ -74,12 +77,23 @@ public final class RemindersHandler: MethodHandler {
         let notes = request.string("notes")
         let completed = request.bool("completed")
         let url = request.string("url")
+        let flagged = request.bool("flagged")
         let commit = request.bool("commit") ?? true
+
+        // Extract alarms array - each element is a dict
+        let alarms: [[String: Any]]? = {
+            guard let raw = request.params?["alarms"]?.arrayValue else { return nil }
+            return raw.compactMap { element -> [String: Any]? in
+                guard let dict = element as? [String: Any] else { return nil }
+                return dict
+            }
+        }()
 
         let result = try provider.saveReminder(
             id: id, calendarIdentifier: calendarIdentifier, title: title,
             dueDate: dueDate, startDate: startDate, priority: priority,
             notes: notes, completed: completed, url: url,
+            flagged: flagged, alarms: alarms,
             commit: commit
         )
         return result.toDict()
@@ -116,5 +130,10 @@ public final class RemindersHandler: MethodHandler {
             startDate: startDate, endDate: endDate, listIdentifiers: listIdentifiers
         )
         return ["reminders": reminders.map { $0.toDict() }] as [String: Any]
+    }
+
+    private func handleRequestFullAccess(_ request: JsonRpcRequest) throws -> Any {
+        let result = try provider.requestFullAccess()
+        return result.toDict()
     }
 }

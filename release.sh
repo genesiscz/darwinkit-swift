@@ -32,18 +32,18 @@ fi
 
 SWIFT_DIR="$SCRIPT_DIR/packages/darwinkit-swift"
 SDK_DIR="$SCRIPT_DIR/packages/darwinkit"
-TARBALL="darwinkit-macos-universal.tar.gz"
+TARBALL="darwinkit-macos-arm64.tar.gz"
 GH_REPO="genesiscz/darwinkit-swift"
 
-# ── Build universal binary ──────────────────────────────
+# ── Build binary (arm64 only) ──────────────────────────
 if [ "$NPM_ONLY" = false ]; then
-  echo "Building universal binary..."
+  echo "Building arm64 binary..."
   cd "$SWIFT_DIR"
-  swift build -c release --arch arm64 --arch x86_64
+  swift build -c release --arch arm64
   cd "$SCRIPT_DIR"
 fi
 
-BINARY="$SWIFT_DIR/.build/apple/Products/Release/darwinkit"
+BINARY="$SWIFT_DIR/.build/arm64-apple-macosx/release/darwinkit"
 
 if [ ! -f "$BINARY" ]; then
   echo "Error: Binary not found at $BINARY"

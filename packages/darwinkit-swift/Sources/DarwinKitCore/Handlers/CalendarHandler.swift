@@ -14,6 +14,7 @@ public final class CalendarHandler: MethodHandler {
             "calendar.default_calendar_events", "calendar.default_calendar_reminders",
             "calendar.commit", "calendar.reset", "calendar.refresh_sources",
             "calendar.request_write_only_access",
+            "calendar.request_full_access",
         ]
     }
 
@@ -61,6 +62,8 @@ public final class CalendarHandler: MethodHandler {
             return handleRefreshSources(request)
         case "calendar.request_write_only_access":
             return try handleRequestWriteOnlyAccess(request)
+        case "calendar.request_full_access":
+            return try handleRequestFullAccess(request)
         default:
             throw JsonRpcError.methodNotFound(request.method)
         }
@@ -221,6 +224,11 @@ public final class CalendarHandler: MethodHandler {
 
     private func handleRequestWriteOnlyAccess(_ request: JsonRpcRequest) throws -> Any {
         let result = try provider.requestWriteOnlyAccess()
+        return result.toDict()
+    }
+
+    private func handleRequestFullAccess(_ request: JsonRpcRequest) throws -> Any {
+        let result = try provider.requestFullAccess()
         return result.toDict()
     }
 

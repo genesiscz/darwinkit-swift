@@ -256,6 +256,16 @@ export class Calendar {
     );
   }
 
+  requestFullAccess(options?: {
+    timeout?: number;
+  }): Promise<CalendarAuthorizedResult> {
+    return this.client.call(
+      "calendar.request_full_access",
+      {} as Record<string, never>,
+      options,
+    );
+  }
+
   // Prepare methods for batch API
   prepareAuthorized(): PreparedCall<"calendar.authorized"> {
     return {

@@ -791,11 +791,59 @@ export interface ReminderInfo {
   list_identifier: string;
   list_title: string;
   has_alarms: boolean;
+  alarms: ReminderAlarmInfo[];
+  is_flagged: boolean;
   external_identifier?: string;
 }
 
+/** Apple's EKReminderPriority values */
+export const ReminderPriority = {
+  none: 0,
+  low: 9,
+  medium: 5,
+  high: 1,
+} as const;
+
+export type ReminderPriorityLevel = keyof typeof ReminderPriority;
+
+/** Map a numeric priority value to a human-readable label */
+export function formatReminderPriority(value: number): string {
+  switch (value) {
+    case 1:
+      return "High";
+    case 5:
+      return "Medium";
+    case 9:
+      return "Low";
+    case 0:
+      return "None";
+    default:
+      return "Unknown";
+  }
+}
+
+export interface ReminderAlarmLocation {
+  title: string;
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
+}
+
+export interface ReminderAlarmInfo {
+  type: "time" | "location";
+  relative_offset?: number;
+  absolute_date?: string;
+  location?: ReminderAlarmLocation;
+  proximity?: "enter" | "leave" | "none";
+}
+
+/** Alarm input for saveItem - either time-based or location-based */
+export type ReminderAlarmInput =
+  | { relative_offset: number }
+  | { location: ReminderAlarmLocation; proximity: "enter" | "leave" };
+
 export interface RemindersAuthorizedResult {
-  status: "fullAccess" | "denied" | "restricted" | "notDetermined";
+  status: "fullAccess" | "writeOnly" | "denied" | "restricted" | "notDetermined";
   authorized: boolean;
 }
 export interface RemindersListsResult {
@@ -819,6 +867,8 @@ export interface RemindersSaveItemParams {
   notes?: string;
   completed?: boolean;
   url?: string;
+  flagged?: boolean;
+  alarms?: ReminderAlarmInput[];
   commit?: boolean;
 }
 
@@ -1269,6 +1319,10 @@ export interface MethodMap {
     params: Record<string, never>;
     result: CalendarOkResult;
   };
+  "calendar.request_full_access": {
+    params: Record<string, never>;
+    result: CalendarAuthorizedResult;
+  };
   "calendar.request_write_only_access": {
     params: Record<string, never>;
     result: CalendarAuthorizedResult;
@@ -1305,6 +1359,10 @@ export interface MethodMap {
   "reminders.completed": {
     params: RemindersCompletedParams;
     result: RemindersItemsResult;
+  };
+  "reminders.request_full_access": {
+    params: Record<string, never>;
+    result: RemindersAuthorizedResult;
   };
   // Notifications
   "notifications.request_authorization": {
