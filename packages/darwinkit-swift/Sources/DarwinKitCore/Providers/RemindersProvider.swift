@@ -317,6 +317,11 @@ public final class AppleRemindersProvider: RemindersProvider {
            let item = store.calendarItem(withIdentifier: id),
            let existing = item as? EKReminder {
             reminder = existing
+            // Allow moving reminder to a different list
+            if let newCalendar = store.calendar(withIdentifier: calendarIdentifier),
+               newCalendar.calendarIdentifier != reminder.calendar.calendarIdentifier {
+                reminder.calendar = newCalendar
+            }
         } else {
             reminder = EKReminder(eventStore: store)
             guard let calendar = store.calendar(withIdentifier: calendarIdentifier) else {
