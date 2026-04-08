@@ -11,6 +11,7 @@ permissions:
 jobs:
   publish:
     runs-on: macos-latest
+    environment: npm
     defaults:
       run:
         working-directory: packages/darwinkit
