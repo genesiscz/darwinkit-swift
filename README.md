@@ -82,9 +82,34 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 | `calendar.calendars` | List calendars | EventKit |
 | `calendar.events` | Fetch events in date range | EventKit |
 | `calendar.event` | Get event by ID | EventKit |
+| `calendar.save_event` | Create or update calendar event | EventKit |
+| `calendar.remove_event` | Delete calendar event | EventKit |
+| `calendar.save_calendar` | Create or update calendar | EventKit |
+| `calendar.remove_calendar` | Delete calendar | EventKit |
+| `calendar.sources` | List calendar sources | EventKit |
+| `calendar.commit` | Commit batched changes | EventKit |
+| `calendar.reset` | Discard uncommitted changes | EventKit |
+| `calendar.refresh_sources` | Refresh calendar sources | EventKit |
+| `calendar.default_calendar_events` | Get default events calendar | EventKit |
+| `calendar.default_calendar_reminders` | Get default reminders calendar | EventKit |
 | `reminders.authorized` | Check/request reminders access | EventKit |
 | `reminders.lists` | List reminder lists | EventKit |
 | `reminders.items` | Fetch reminders | EventKit |
+| `reminders.save_item` | Create or update reminder | EventKit |
+| `reminders.remove_item` | Delete reminder | EventKit |
+| `reminders.complete_item` | Mark reminder as completed | EventKit |
+| `reminders.incomplete` | Fetch incomplete reminders (with date range) | EventKit |
+| `reminders.completed` | Fetch completed reminders (with date range) | EventKit |
+| `notifications.request_authorization` | Request notification permission | UserNotifications |
+| `notifications.settings` | Get notification settings | UserNotifications |
+| `notifications.send` | Send notification (title, body, sound, attachments, triggers) | UserNotifications |
+| `notifications.register_category` | Register action buttons + text input | UserNotifications |
+| `notifications.list_pending` | List pending notifications | UserNotifications |
+| `notifications.remove_pending` | Remove pending notifications | UserNotifications |
+| `notifications.remove_all_pending` | Remove all pending notifications | UserNotifications |
+| `notifications.list_delivered` | List delivered notifications | UserNotifications |
+| `notifications.remove_delivered` | Remove delivered notifications | UserNotifications |
+| `notifications.remove_all_delivered` | Remove all delivered notifications | UserNotifications |
 | `system.capabilities` | Query available methods + OS info | — |
 
 ## Requirements
@@ -96,6 +121,7 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 - Translation requires macOS 15+ (TranslationSession requires macOS 26+)
 - Foundation Models (LLM) requires macOS 26+ with Apple Intelligence enabled
 - Sound Analysis requires macOS 14+
+- Notifications require the binary to be inside a `.app` bundle with `Info.plist` (handled automatically by the release build)
 
 ## Install
 
