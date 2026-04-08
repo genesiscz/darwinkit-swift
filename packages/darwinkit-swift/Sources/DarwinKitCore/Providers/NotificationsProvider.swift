@@ -193,6 +193,10 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
         center.delegate = self
     }
 
+    deinit {
+        center.delegate = nil
+    }
+
     public func setInteractionHandler(_ handler: @escaping (NotificationInteractionEvent) -> Void) {
         self.interactionHandler = handler
     }
@@ -280,7 +284,12 @@ public final class AppleNotificationsProvider: NSObject, NotificationsProvider, 
                 guard FileManager.default.fileExists(atPath: path) else {
                     throw JsonRpcError.invalidParams("Attachment file not found: \(path)")
                 }
-                let attachment = try UNNotificationAttachment(identifier: url.lastPathComponent, url: url, options: nil)
+                let attachment: UNNotificationAttachment
+                do {
+                    attachment = try UNNotificationAttachment(identifier: url.lastPathComponent, url: url, options: nil)
+                } catch {
+                    throw JsonRpcError.invalidParams("Failed to create attachment from \(path): \(error.localizedDescription)")
+                }
                 attachments.append(attachment)
             }
             content.attachments = attachments
