@@ -204,7 +204,7 @@ export class Calendar {
 
   defaultCalendarForEvents(options?: {
     timeout?: number;
-  }): Promise<CalendarInfo> {
+  }): Promise<CalendarInfo | null> {
     return this.client.call(
       "calendar.default_calendar_events",
       {} as Record<string, never>,
@@ -214,7 +214,7 @@ export class Calendar {
 
   defaultCalendarForReminders(options?: {
     timeout?: number;
-  }): Promise<CalendarInfo> {
+  }): Promise<CalendarInfo | null> {
     return this.client.call(
       "calendar.default_calendar_reminders",
       {} as Record<string, never>,

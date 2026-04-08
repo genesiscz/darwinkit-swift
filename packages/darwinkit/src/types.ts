@@ -1251,11 +1251,11 @@ export interface MethodMap {
   };
   "calendar.default_calendar_events": {
     params: Record<string, never>;
-    result: CalendarInfo;
+    result: CalendarInfo | null;
   };
   "calendar.default_calendar_reminders": {
     params: Record<string, never>;
-    result: CalendarInfo;
+    result: CalendarInfo | null;
   };
   "calendar.commit": {
     params: Record<string, never>;

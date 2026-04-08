@@ -23,6 +23,12 @@ for arg in "$@"; do
   esac
 done
 
+# Require clean working tree before sync operations
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Working tree has uncommitted changes. Commit or stash first."
+  exit 1
+fi
+
 # Ensure we're on main
 BRANCH=$(git branch --show-current)
 if [ "$BRANCH" != "main" ]; then
