@@ -295,7 +295,10 @@ export class DarwinKit implements DarwinKitClient {
 
     if (!this.resolvedBinary) {
       this.log("debug", "Resolving binary...");
-      this.resolvedBinary = await ensureBinary(this.binaryPath);
+      this.resolvedBinary = await ensureBinary(
+        this.binaryPath,
+        (level, message) => this.log(level, message),
+      );
       this.log("debug", `Binary resolved: ${this.resolvedBinary}`);
     }
 

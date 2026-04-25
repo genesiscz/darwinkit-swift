@@ -30,6 +30,10 @@ interface CacheManifest {
   version: string;
 }
 
+export type BinaryLogLevel = "debug" | "info" | "warn" | "error";
+export type BinaryLogFn = (level: BinaryLogLevel, message: string) => void;
+const noopLog: BinaryLogFn = () => {};
+
 /** Resolve the directory where this module lives (works in both ESM and CJS). */
 function getPackageDir(): string {
   try {
@@ -69,7 +73,10 @@ function writeManifest(version: string): void {
   );
 }
 
-export async function ensureBinary(binaryPath?: string): Promise<string> {
+export async function ensureBinary(
+  binaryPath?: string,
+  log: BinaryLogFn = noopLog,
+): Promise<string> {
   // 1. Explicit path
   if (binaryPath) {
     if (!existsSync(binaryPath)) {
@@ -105,11 +112,12 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
   // 6. Download and atomically replace the cache directory
   const releaseURL = getReleaseURL(expectedVersion);
   try {
-    console.error(
-      `[darwinkit] Downloading binary v${expectedVersion} from GitHub releases...`,
+    log(
+      "info",
+      `Downloading binary v${expectedVersion} from GitHub releases...`,
     );
     await downloadAndReplaceCache(releaseURL, expectedVersion);
-    console.error("[darwinkit] Cached at", CACHE_DIR);
+    log("debug", `Cached at ${CACHE_DIR}`);
     if (existsSync(cachedApp)) return cachedApp;
     if (existsSync(cached)) {
       chmodSync(cached, 0o755);
@@ -117,19 +125,25 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
     }
     throw new Error("Tarball did not contain expected binary or .app bundle");
   } catch (downloadError) {
-    console.error("[darwinkit] Download failed:", downloadError);
+    log(
+      "warn",
+      `Download failed: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`,
+    );
   }
 
   // 7. Build from source as last resort
   if (findOnPath("swift")) {
     try {
-      console.error("[darwinkit] Attempting to build from source...");
+      log("info", "Attempting to build from source...");
       mkdirSync(CACHE_DIR, { recursive: true });
-      const built = await buildFromSource(cached);
+      const built = await buildFromSource(cached, log);
       writeManifest(expectedVersion);
       return built;
     } catch (buildError) {
-      console.error("[darwinkit] Build from source failed:", buildError);
+      log(
+        "warn",
+        `Build from source failed: ${buildError instanceof Error ? buildError.message : String(buildError)}`,
+      );
     }
   }
 
@@ -199,7 +213,10 @@ async function downloadAndReplaceCache(
   }
 }
 
-async function buildFromSource(outputPath: string): Promise<string> {
+async function buildFromSource(
+  outputPath: string,
+  log: BinaryLogFn,
+): Promise<string> {
   const { execSync } = await import("node:child_process");
   const tmpDir = execSync("mktemp -d", { encoding: "utf-8" }).trim();
 
@@ -227,7 +244,7 @@ async function buildFromSource(outputPath: string): Promise<string> {
     const { copyFileSync } = await import("node:fs");
     copyFileSync(builtBinary, outputPath);
     chmodSync(outputPath, 0o755);
-    console.error("[darwinkit] Built from source and cached at", outputPath);
+    log("info", `Built from source and cached at ${outputPath}`);
     return outputPath;
   } finally {
     try {
