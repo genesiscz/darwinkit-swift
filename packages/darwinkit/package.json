@@ -1,6 +1,6 @@
 {
   "name": "@genesiscz/darwinkit",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "TypeScript SDK for DarwinKit — Apple's on-device ML via JSON-RPC",
   "type": "module",
   "main": "./dist/index.cjs",
