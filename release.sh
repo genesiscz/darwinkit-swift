@@ -191,7 +191,16 @@ git push origin "$TAG"
 
 # ── GitHub release ──────────────────────────────────────
 echo "Creating tarball..."
-tar -czf "$SCRIPT_DIR/$TARBALL" -C "$SWIFT_DIR/.build/arm64-apple-macosx/release" darwinkit
+# Stage both the standalone binary and the .app bundle so npm-installed
+# users get notification support (UNUserNotificationCenter requires the
+# bundle). The TS SDK's binary resolver prefers the .app over the
+# standalone if both are present.
+STAGE_DIR="$(mktemp -d)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
+cp "$BINARY" "$STAGE_DIR/darwinkit"
+chmod 755 "$STAGE_DIR/darwinkit"
+create_app_bundle "$BINARY" "$STAGE_DIR"
+tar -czf "$SCRIPT_DIR/$TARBALL" -C "$STAGE_DIR" darwinkit DarwinKit.app
 
 # Check if release already exists
 if gh release view "$TAG" --repo "$GH_REPO" &>/dev/null; then
