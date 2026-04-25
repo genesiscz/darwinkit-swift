@@ -1,5 +1,13 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, chmodSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  chmodSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  renameSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -11,7 +19,16 @@ import { extract } from "tar";
 const BINARY_NAME = "darwinkit";
 const APP_BUNDLE_PATH = "DarwinKit.app/Contents/MacOS/darwinkit";
 const CACHE_ROOT = join(homedir(), ".cache", "darwinkit");
+// Cache lives at a stable path so macOS TCC doesn't treat each upgrade as a
+// new app and re-prompt for Calendar/Reminders/Notifications permissions.
+// Version tracking is moved to a sibling manifest file.
+const CACHE_DIR = join(CACHE_ROOT, "latest");
+const MANIFEST_PATH = join(CACHE_DIR, "version.json");
 const REPO_URL = "https://github.com/genesiscz/darwinkit-swift.git";
+
+interface CacheManifest {
+  version: string;
+}
 
 /** Resolve the directory where this module lives (works in both ESM and CJS). */
 function getPackageDir(): string {
@@ -24,12 +41,12 @@ function getPackageDir(): string {
   }
 }
 
-let cachedVersion: string | null = null;
+let memoizedVersion: string | null = null;
 function getPackageVersion(): string {
-  if (cachedVersion) return cachedVersion;
+  if (memoizedVersion) return memoizedVersion;
   const pkgPath = join(getPackageDir(), "..", "package.json");
   const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version: string };
-  cachedVersion = pkg.version;
+  memoizedVersion = pkg.version;
   return pkg.version;
 }
 
@@ -37,8 +54,19 @@ function getReleaseURL(version: string): string {
   return `https://github.com/genesiscz/darwinkit-swift/releases/download/v${version}/darwinkit-macos-arm64.tar.gz`;
 }
 
-function getVersionedCacheDir(version: string): string {
-  return join(CACHE_ROOT, `v${version}`);
+function readManifest(): CacheManifest | null {
+  try {
+    return JSON.parse(readFileSync(MANIFEST_PATH, "utf-8")) as CacheManifest;
+  } catch {
+    return null;
+  }
+}
+
+function writeManifest(version: string): void {
+  writeFileSync(
+    MANIFEST_PATH,
+    JSON.stringify({ version }, null, 2) + "\n",
+  );
 }
 
 export async function ensureBinary(binaryPath?: string): Promise<string> {
@@ -62,46 +90,50 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
   const fromPath = findOnPath(BINARY_NAME);
   if (fromPath) return fromPath;
 
-  // Cache is keyed by package version so a new SDK release always pulls a
-  // fresh binary instead of reusing a stale one from a previous version.
-  const version = getPackageVersion();
-  const versionedCacheDir = getVersionedCacheDir(version);
+  // 5. Use stable-path cache if its manifest matches the SDK version
+  const expectedVersion = getPackageVersion();
+  const manifest = readManifest();
+  const cachedApp = join(CACHE_DIR, APP_BUNDLE_PATH);
+  const cached = join(CACHE_DIR, BINARY_NAME);
 
-  // 5. Check versioned cached .app bundle
-  const cachedApp = join(versionedCacheDir, APP_BUNDLE_PATH);
-  if (existsSync(cachedApp)) return cachedApp;
+  if (manifest?.version === expectedVersion) {
+    if (existsSync(cachedApp)) return cachedApp;
+    if (existsSync(cached)) return cached;
+    // Manifest claims current but binary is missing — fall through to download.
+  }
 
-  // 6. Check versioned cached standalone binary
-  const cached = join(versionedCacheDir, BINARY_NAME);
-  if (existsSync(cached)) return cached;
-
-  // 7. Download from versioned GitHub release
-  mkdirSync(versionedCacheDir, { recursive: true });
-  const releaseURL = getReleaseURL(version);
-
+  // 6. Download and atomically replace the cache directory
+  const releaseURL = getReleaseURL(expectedVersion);
   try {
     console.error(
-      `[darwinkit] Downloading binary v${version} from GitHub releases...`,
+      `[darwinkit] Downloading binary v${expectedVersion} from GitHub releases...`,
     );
-    await downloadAndExtract(releaseURL, versionedCacheDir);
-    chmodSync(cached, 0o755);
-    console.error("[darwinkit] Binary downloaded to", cached);
-    return cached;
+    await downloadAndReplaceCache(releaseURL, expectedVersion);
+    console.error("[darwinkit] Cached at", CACHE_DIR);
+    if (existsSync(cachedApp)) return cachedApp;
+    if (existsSync(cached)) {
+      chmodSync(cached, 0o755);
+      return cached;
+    }
+    throw new Error("Tarball did not contain expected binary or .app bundle");
   } catch (downloadError) {
     console.error("[darwinkit] Download failed:", downloadError);
   }
 
-  // 8. Build from source
+  // 7. Build from source as last resort
   if (findOnPath("swift")) {
     try {
       console.error("[darwinkit] Attempting to build from source...");
-      return await buildFromSource(cached);
+      mkdirSync(CACHE_DIR, { recursive: true });
+      const built = await buildFromSource(cached);
+      writeManifest(expectedVersion);
+      return built;
     } catch (buildError) {
       console.error("[darwinkit] Build from source failed:", buildError);
     }
   }
 
-  // 9. Fail with instructions
+  // 8. Fail with instructions
   throw new Error(
     "Could not find or install darwinkit binary.\n" +
       "Install it manually:\n" +
@@ -133,6 +165,38 @@ async function downloadAndExtract(url: string, destDir: string): Promise<void> {
 
   const nodeStream = Readable.fromWeb(response.body as any);
   await pipeline(nodeStream, createGunzip(), extract({ cwd: destDir }));
+}
+
+async function downloadAndReplaceCache(
+  url: string,
+  version: string,
+): Promise<void> {
+  // Download into a sibling staging dir so a failed/interrupted download
+  // never corrupts the existing cache. Replace atomically (rmdir + rename).
+  mkdirSync(CACHE_ROOT, { recursive: true });
+  const stagingDir = join(
+    CACHE_ROOT,
+    `.staging-${process.pid}-${Date.now()}`,
+  );
+  mkdirSync(stagingDir, { recursive: true });
+  try {
+    await downloadAndExtract(url, stagingDir);
+    writeFileSync(
+      join(stagingDir, "version.json"),
+      JSON.stringify({ version }, null, 2) + "\n",
+    );
+    if (existsSync(CACHE_DIR)) {
+      rmSync(CACHE_DIR, { recursive: true, force: true });
+    }
+    renameSync(stagingDir, CACHE_DIR);
+    const cachedBinary = join(CACHE_DIR, BINARY_NAME);
+    if (existsSync(cachedBinary)) chmodSync(cachedBinary, 0o755);
+    const cachedAppBinary = join(CACHE_DIR, APP_BUNDLE_PATH);
+    if (existsSync(cachedAppBinary)) chmodSync(cachedAppBinary, 0o755);
+  } catch (err) {
+    rmSync(stagingDir, { recursive: true, force: true });
+    throw err;
+  }
 }
 
 async function buildFromSource(outputPath: string): Promise<string> {
