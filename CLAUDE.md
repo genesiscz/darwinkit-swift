@@ -33,8 +33,28 @@ bun run dev      # watch mode
 ```
 
 ### Release
+
 ```bash
-./release.sh <version> [--npm-only] [--skip-npm] [--otp=CODE]
+./release.sh <version>              # full release: bump, build, tag, push, GH release → npm
+./release.sh <version> --no-push    # bump, build, tag locally — don't push or create GH release
+./release.sh --build-only           # local binary + SDK build only (no version change)
+```
+
+**Flow** (`./release.sh 0.7.0`):
+1. Pre-flight: must be on `main`, working tree clean (except `packages/darwinkit/package.json`).
+2. Bumps `packages/darwinkit/package.json` to the new version, commits `chore: bump version to X.Y.Z`.
+3. Builds arm64 release binary (`swift build -c release --arch arm64`).
+4. Creates `vX.Y.Z` git tag, pushes commit + tag to `origin/main`.
+5. Tarballs the binary as `darwinkit-macos-arm64.tar.gz`, creates a GitHub release with auto-generated notes.
+6. GitHub Actions workflow `.github/workflows/publish-npm.yml` triggers on release creation and runs `npm publish --provenance --access public` via OIDC trusted publishing (no `NPM_TOKEN` needed; npm ≥ 11.5.1 required for scoped-package OIDC).
+
+**Resume**: if `vX.Y.Z` already exists at HEAD with matching `package.json`, the script skips bump+tag and continues from the tarball/release step. Useful if a previous run failed mid-way.
+
+**Verify after release**:
+```bash
+gh release view v0.7.0 --repo genesiscz/darwinkit-swift
+gh run list --repo genesiscz/darwinkit-swift --limit 3   # check "Publish to npm" run
+npm view @genesiscz/darwinkit version                    # should show new version
 ```
 
 ### Upstream sync
