@@ -31,14 +31,19 @@ let package = Package(
             ]
         ),
         .target(
+            name: "DarwinKitObjC",
+            publicHeadersPath: "include"
+        ),
+        .target(
             name: "DarwinKitCore",
             dependencies: [
+                "DarwinKitObjC",
                 .product(name: "Embeddings", package: "swift-embeddings")
             ]
         ),
         .testTarget(
             name: "DarwinKitCoreTests",
-            dependencies: ["DarwinKitCore"]
+            dependencies: ["DarwinKitCore", "DarwinKitObjC"]
         )
     ]
 )

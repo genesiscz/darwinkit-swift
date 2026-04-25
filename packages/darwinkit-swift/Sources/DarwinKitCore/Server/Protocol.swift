@@ -92,6 +92,7 @@ public enum JsonRpcError: Error {
     case osVersionTooOld(String)
     case operationCancelled
     case internalError(String)
+    case objcException(name: String, reason: String)
 
     public var body: JsonRpcErrorBody {
         switch self {
@@ -113,6 +114,11 @@ public enum JsonRpcError: Error {
             return JsonRpcErrorBody(code: -32004, message: "Operation cancelled")
         case .internalError(let msg):
             return JsonRpcErrorBody(code: -32603, message: msg)
+        case .objcException(let name, let reason):
+            return JsonRpcErrorBody(
+                code: -32000,
+                message: "internal exception: \(name): \(reason)"
+            )
         }
     }
 }

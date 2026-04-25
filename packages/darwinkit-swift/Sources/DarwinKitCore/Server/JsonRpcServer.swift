@@ -1,5 +1,6 @@
 import AppKit
 import Darwin
+import DarwinKitObjC
 import Foundation
 
 /// Protocol for handlers that need to push async notifications to the parent process.
@@ -87,13 +88,37 @@ public final class JsonRpcServer: NotificationSink {
             return
         }
 
+        // Wrap dispatch in an ObjC @try/@catch shim so an Apple framework
+        // NSException (e.g. KVC undefined-key inside a typed accessor on
+        // macOS 26+) becomes a JSON-RPC error frame instead of aborting
+        // the whole process.
+        var dispatchResult: Result<Any, JsonRpcError>? = nil
         do {
-            let result = try router.dispatch(request)
-            sendSuccess(id: request.id, result: result)
-        } catch let error as JsonRpcError {
-            sendError(id: request.id, error: error)
+            try DarwinKitObjC.catchException {
+                do {
+                    let result = try self.router.dispatch(request)
+                    dispatchResult = .success(result)
+                } catch let error as JsonRpcError {
+                    dispatchResult = .failure(error)
+                } catch {
+                    dispatchResult = .failure(.internalError(error.localizedDescription))
+                }
+            }
         } catch {
-            sendError(id: request.id, error: .internalError(error.localizedDescription))
+            let ns = error as NSError
+            let name = ns.userInfo[DarwinKitObjCExceptionNameKey] as? String ?? "NSException"
+            let reason = ns.userInfo[DarwinKitObjCExceptionReasonKey] as? String ?? ""
+            sendError(id: request.id, error: .objcException(name: name, reason: reason))
+            return
+        }
+
+        switch dispatchResult {
+        case .success(let result):
+            sendSuccess(id: request.id, result: result)
+        case .failure(let error):
+            sendError(id: request.id, error: error)
+        case .none:
+            sendError(id: request.id, error: .internalError("dispatch produced no result"))
         }
     }
 

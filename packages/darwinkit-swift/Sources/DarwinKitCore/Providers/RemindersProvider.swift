@@ -355,8 +355,8 @@ public final class AppleRemindersProvider: RemindersProvider {
             hasAlarms: reminder.hasAlarms,
             alarms: alarmInfos,
             isFlagged: false,  // EKReminder doesn't expose flagged state on macOS
-            listIdentifier: reminder.calendar.calendarIdentifier,
-            listTitle: reminder.calendar.title,
+            listIdentifier: reminder.calendar?.calendarIdentifier ?? "",
+            listTitle: reminder.calendar?.title ?? "",
             externalIdentifier: reminder.calendarItemExternalIdentifier
         )
     }
