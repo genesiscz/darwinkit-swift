@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, chmodSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -10,9 +10,7 @@ import { extract } from "tar";
 
 const BINARY_NAME = "darwinkit";
 const APP_BUNDLE_PATH = "DarwinKit.app/Contents/MacOS/darwinkit";
-const CACHE_DIR = join(homedir(), ".cache", "darwinkit");
-const RELEASE_URL =
-  "https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-arm64.tar.gz";
+const CACHE_ROOT = join(homedir(), ".cache", "darwinkit");
 const REPO_URL = "https://github.com/genesiscz/darwinkit-swift.git";
 
 /** Resolve the directory where this module lives (works in both ESM and CJS). */
@@ -24,6 +22,23 @@ function getPackageDir(): string {
     // CJS fallback
     return __dirname;
   }
+}
+
+let cachedVersion: string | null = null;
+function getPackageVersion(): string {
+  if (cachedVersion) return cachedVersion;
+  const pkgPath = join(getPackageDir(), "..", "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version: string };
+  cachedVersion = pkg.version;
+  return pkg.version;
+}
+
+function getReleaseURL(version: string): string {
+  return `https://github.com/genesiscz/darwinkit-swift/releases/download/v${version}/darwinkit-macos-arm64.tar.gz`;
+}
+
+function getVersionedCacheDir(version: string): string {
+  return join(CACHE_ROOT, `v${version}`);
 }
 
 export async function ensureBinary(binaryPath?: string): Promise<string> {
@@ -47,22 +62,28 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
   const fromPath = findOnPath(BINARY_NAME);
   if (fromPath) return fromPath;
 
-  // 5. Check cached .app bundle
-  const cachedApp = join(CACHE_DIR, APP_BUNDLE_PATH);
+  // Cache is keyed by package version so a new SDK release always pulls a
+  // fresh binary instead of reusing a stale one from a previous version.
+  const version = getPackageVersion();
+  const versionedCacheDir = getVersionedCacheDir(version);
+
+  // 5. Check versioned cached .app bundle
+  const cachedApp = join(versionedCacheDir, APP_BUNDLE_PATH);
   if (existsSync(cachedApp)) return cachedApp;
 
-  // 6. Check cached standalone binary
-  const cached = join(CACHE_DIR, BINARY_NAME);
+  // 6. Check versioned cached standalone binary
+  const cached = join(versionedCacheDir, BINARY_NAME);
   if (existsSync(cached)) return cached;
 
-  // 7. Download from GitHub releases
-  mkdirSync(CACHE_DIR, { recursive: true });
+  // 7. Download from versioned GitHub release
+  mkdirSync(versionedCacheDir, { recursive: true });
+  const releaseURL = getReleaseURL(version);
 
   try {
     console.error(
-      "[darwinkit] Binary not found, downloading from GitHub releases...",
+      `[darwinkit] Downloading binary v${version} from GitHub releases...`,
     );
-    await downloadAndExtract(RELEASE_URL, CACHE_DIR);
+    await downloadAndExtract(releaseURL, versionedCacheDir);
     chmodSync(cached, 0o755);
     console.error("[darwinkit] Binary downloaded to", cached);
     return cached;
@@ -84,7 +105,7 @@ export async function ensureBinary(binaryPath?: string): Promise<string> {
   throw new Error(
     "Could not find or install darwinkit binary.\n" +
       "Install it manually:\n" +
-      "  curl -L https://github.com/genesiscz/darwinkit-swift/releases/latest/download/darwinkit-macos-arm64.tar.gz | tar xz -C ~/.local/bin/\n" +
+      `  curl -L ${releaseURL} | tar xz -C ~/.local/bin/\n` +
       "Or set the binary path:\n" +
       "  new DarwinKit({ binary: '/path/to/darwinkit' })",
   );
