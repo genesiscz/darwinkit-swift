@@ -169,18 +169,51 @@ export class DarwinKit implements DarwinKitClient {
   }
 
   /**
-   * Gracefully close the server by closing stdin.
+   * Gracefully close the server.
+   *
+   * Lifecycle:
+   *   1. Close stdin → child should see EOF and exit naturally
+   *   2. Wait up to 500ms for graceful exit
+   *   3. SIGTERM, wait another 500ms
+   *   4. SIGKILL, wait another 500ms
+   *
+   * Idempotent. Awaiting is optional — fire-and-forget `dk.close()` still
+   * works (existing call sites need not change), but `await dk.close()`
+   * guarantees the child has actually terminated before returning.
    */
-  close(): void {
+  async close(): Promise<void> {
+    // Idempotent: if we already closed cleanly, nothing to do.
+    if (this.intentionallyClosed && this.transport.hasExited()) return;
     this.intentionallyClosed = true;
     this._connected = false;
     this.connectPromise = null;
-    this.transport.stop();
+
+    const proc = this.transport.stop();
     for (const [, pending] of this.pending) {
       clearTimeout(pending.timer);
       pending.reject(new Error("Client closed"));
     }
     this.pending.clear();
+
+    if (!proc || this.transport.hasExited()) return;
+
+    const waitForExit = (ms: number): Promise<void> =>
+      new Promise((resolve) => {
+        if (this.transport.hasExited()) return resolve();
+        const t = setTimeout(resolve, ms);
+        proc.once("exit", () => {
+          clearTimeout(t);
+          resolve();
+        });
+      });
+
+    await waitForExit(500);
+    if (this.transport.hasExited()) return;
+    this.transport.kill("SIGTERM");
+    await waitForExit(500);
+    if (this.transport.hasExited()) return;
+    this.transport.kill("SIGKILL");
+    await waitForExit(500);
   }
 
   // ─── JSON-RPC call ──────────────────────────────────────
