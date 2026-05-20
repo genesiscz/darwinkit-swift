@@ -57,6 +57,56 @@ gh run list --repo genesiscz/darwinkit-swift --limit 3   # check "Publish to npm
 npm view @genesiscz/darwinkit version                    # should show new version
 ```
 
+### End-to-end PR-to-published-and-consumed workflow
+
+When fixing a bug/feature that needs to land on npm AND in GenesisTools (the
+main consumer), the canonical flow is:
+
+1. **Branch + commits in `darwinkit-swift`** — feature branch off `main`, commits + tests.
+2. **Open PR** — `gh pr create --base main --head <branch>`. Note the PR number.
+3. **Address review** — fetch reviewer comments with `tools github review <PR#> --llm`,
+   expand threads, fix what's VALID, push back on FALSE_POSITIVE with code evidence.
+   Reply to each thread via `tools github review respond t<N> "..." -s <session>`.
+4. **Merge** — `gh pr merge <PR#> --repo genesiscz/darwinkit-swift --rebase --delete-branch`.
+   We use **rebase** (not squash, not merge-commit) so the per-commit history that
+   the PR built up survives on `main`. After merge: `git checkout main && git pull --ff-only`.
+5. **Release** — `./release.sh X.Y.Z` (full flow per section above).
+6. **Watch npm publish workflow**:
+   ```bash
+   # Find the run id (look for "in_progress" workflow_run of "Publish to npm"):
+   gh run list --repo genesiscz/darwinkit-swift --limit 3
+   # Then block until it succeeds:
+   gh run watch <run-id> --repo genesiscz/darwinkit-swift --exit-status
+   ```
+7. **Confirm npm**:
+   ```bash
+   npm view @genesiscz/darwinkit version   # must equal X.Y.Z
+   ```
+8. **Bump consumer** — in GenesisTools (worktree or fresh branch):
+   ```bash
+   # edit packages/darwinkit dependency pin in package.json: "X.Y.Z"
+   bun install   # updates bun.lock
+   git add package.json bun.lock
+   git commit -m "chore: bump @genesiscz/darwinkit X.Y.(Z-1) → X.Y.Z"
+   git push
+   ```
+9. **Open consumer PR for review** in the user's browser:
+   ```bash
+   open -a "Brave Browser" https://github.com/genesiscz/GenesisTools/pull/<num>
+   ```
+
+**Why rebase-merge for `darwinkit-swift`:** The `release.sh` script reads
+`packages/darwinkit/package.json` at HEAD and tags `vX.Y.Z`. A messy
+squash/merge commit on `main` confuses the script's resume logic (which keys on
+"tag already exists at HEAD with matching package.json"). Rebase keeps the tag
+boundaries clean.
+
+**Why a separate consumer-bump PR (not a merge commit + release on the same
+branch):** GenesisTools' `bun.lock` is sensitive to the exact tarball it
+downloads. Bumping ONLY after npm has the new version live avoids a
+race where `bun install` runs before publish-npm.yml finishes and pins the
+old version. Step 7 (`npm view`) is the gate.
+
 ### Upstream sync
 ```bash
 ./sync.sh         # rebase onto 0xMassi/darwinkit, create PR
