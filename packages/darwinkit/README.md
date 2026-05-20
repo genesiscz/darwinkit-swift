@@ -31,8 +31,33 @@ console.log(vector.length) // 512
 const { text } = await dk.vision.ocr({ path: "/tmp/screenshot.png" })
 console.log(text)
 
-dk.close()
+await dk.close() // gracefully shut down the Swift child
 ```
+
+### Explicit-resource-management (recommended)
+
+With TypeScript 5.2+ / Node 20.4+ you can use the `using` syntax to get
+deterministic shutdown without a manual `close()`:
+
+```typescript
+import { DarwinKit } from "@genesiscz/darwinkit"
+
+{
+  await using dk = new DarwinKit()
+  const lang = await dk.nlp.language({ text: "Bonjour" })
+  console.log(lang)
+} // ← Swift child shut down here, no leaks even on throw
+```
+
+### Lifecycle notes
+
+- `dk.close()` is **idempotent** and escalates `stdin.end()` → `SIGTERM` → `SIGKILL`
+  if the child doesn't honour graceful shutdown within 500 ms per step.
+- The SDK calls `child.unref()` on the spawned process and stdio pipes, so a
+  short-lived consumer that **forgets** to call `close()` can still exit
+  naturally — and a global `process.on('exit')` reaper SIGKILLs any survivors.
+  You should still call `close()` for prompt cleanup; the safety nets exist so
+  one missed call doesn't accumulate zombies across hundreds of CLI invocations.
 
 ## Features
 

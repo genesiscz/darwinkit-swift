@@ -252,6 +252,16 @@ export class DarwinKit implements DarwinKitClient {
     await waitForExit(500);
   }
 
+  /** Sync dispose for `using dk = new DarwinKit()` — fire-and-forget close. */
+  [Symbol.dispose](): void {
+    void this.close();
+  }
+
+  /** Async dispose for `await using dk = new DarwinKit()` — awaits full shutdown. */
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
+  }
+
   // ─── JSON-RPC call ──────────────────────────────────────
 
   async call<M extends MethodName>(
