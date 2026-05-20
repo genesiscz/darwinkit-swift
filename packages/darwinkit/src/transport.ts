@@ -49,6 +49,7 @@ export class Transport {
       this.rl?.close();
       this.rl = null;
       options.onExit(code);
+      this.process = null;
     });
 
     // Pipe stderr for debugging
@@ -64,13 +65,42 @@ export class Transport {
     this.process.stdin.write(json + "\n");
   }
 
-  stop(): void {
+  /**
+   * Graceful: close stdin so the child sees EOF and exits on its own.
+   * Returns the still-live ChildProcess so the caller can await its `exit`
+   * event or escalate with kill(). Does NOT null `this.process` — the
+   * `exit` handler does that, so kill() works during the escalation window.
+   */
+  stop(): ChildProcess | null {
     this._alive = false;
     this.rl?.close();
     this.rl = null;
-    if (this.process?.stdin?.writable) {
-      this.process.stdin.end();
+    const proc = this.process;
+    if (proc?.stdin?.writable) {
+      try {
+        proc.stdin.end();
+      } catch {
+        // ignore broken pipe
+      }
     }
-    this.process = null;
+    return proc;
+  }
+
+  /** Forceful: send signal, swallow errors if the child is already dead. */
+  kill(signal: NodeJS.Signals = "SIGTERM"): void {
+    try {
+      this.process?.kill(signal);
+    } catch {
+      // already dead
+    }
+  }
+
+  /** Has the underlying child exited (or never started)? */
+  hasExited(): boolean {
+    return (
+      !this.process ||
+      this.process.exitCode !== null ||
+      this.process.signalCode !== null
+    );
   }
 }

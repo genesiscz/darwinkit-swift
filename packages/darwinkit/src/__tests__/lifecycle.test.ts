@@ -32,8 +32,7 @@ describe("DarwinKit lifecycle", () => {
       await dk.connect();
       expect(await countLiveChildren(process.pid)).toBe(1);
 
-      // Note: pre-fix close() is sync; post-fix it becomes async. await works for both.
-      await (dk.close() as unknown as Promise<void> | void);
+      await dk.close();
 
       const ok = await waitUntil(async () => (await countLiveChildren(process.pid)) === 0, 2_000);
       expect(ok).toBe(true);
