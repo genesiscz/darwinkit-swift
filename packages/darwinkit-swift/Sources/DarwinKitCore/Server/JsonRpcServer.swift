@@ -34,14 +34,14 @@ public final class JsonRpcServer: NotificationSink {
         // Ignore SIGPIPE so broken-pipe returns EPIPE instead of killing the process
         signal(SIGPIPE, SIG_IGN)
 
-        // Clean shutdown on SIGTERM / SIGINT from the parent. The handler must be
-        // async-signal-safe — no Swift framework calls, just a stderr write and
-        // Darwin.exit(0). The SDK's close() escalates to these signals when
-        // stdin.end() doesn't produce graceful exit fast enough.
+        // Clean shutdown on SIGTERM / SIGINT from the parent. The handler MUST
+        // be strictly async-signal-safe — no allocations, no Swift `String`
+        // APIs (withCString / etc. are not in the POSIX safe list), and
+        // `_exit(2)` instead of `exit(3)` (the latter runs atexit handlers and
+        // is not async-signal-safe). The SDK's close() escalates to these
+        // signals when stdin.end() doesn't produce graceful exit fast enough.
         let shutdownHandler: @convention(c) (Int32) -> Void = { _ in
-            let msg = "[darwinkit] received signal, exiting\n"
-            msg.withCString { _ = Darwin.write(STDERR_FILENO, $0, strlen($0)) }
-            Darwin.exit(0)
+            Darwin._exit(0)
         }
         signal(SIGTERM, shutdownHandler)
         signal(SIGINT, shutdownHandler)

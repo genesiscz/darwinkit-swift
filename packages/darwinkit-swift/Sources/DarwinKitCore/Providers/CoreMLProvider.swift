@@ -106,9 +106,21 @@ public final class AppleCoreMLProvider: CoreMLProvider {
     /// Loaded NLContextualEmbedding instances
     private var contextualModels: [String: Any] = [:]
 
-    /// Per-id last-access timestamp for idle TTL eviction. Shared across both
-    /// `models` and `contextualModels` since the id namespaces don't overlap.
-    private var lastAccess: [String: Date] = [:]
+    /// Per-id last-access timestamps for idle TTL eviction. Kept separate per
+    /// store so that loadModel/loadContextualEmbedding using the same id (which
+    /// the existing API allows — see loadModel's guard only checks `models`)
+    /// don't conflate two different resources during eviction.
+    private var modelLastAccess: [String: Date] = [:]
+    private var contextualLastAccess: [String: Date] = [:]
+
+    /// Synchronizes access to `models`, `contextualModels`, and the two
+    /// `*LastAccess` dictionaries. The eviction timer runs on a utility queue;
+    /// public load/embed/unload methods run on the stdin thread. Without a
+    /// lock these would race — Swift's Dictionary is documented as unsafe
+    /// for concurrent mutation. NSLock is plenty: contention is low and the
+    /// critical sections are short bookkeeping ops (heavy work like CoreML
+    /// model loading happens OUTSIDE the lock).
+    private let stateLock = NSLock()
 
     /// Compiled model cache directory
     private let cacheDir: URL
@@ -141,31 +153,51 @@ public final class AppleCoreMLProvider: CoreMLProvider {
         self.evictionTimer = timer
     }
 
-    /// Mark an id as freshly accessed so it doesn't get evicted on the next sweep.
-    private func touch(_ id: String) {
-        lastAccess[id] = Date()
+    /// Run a closure with the state lock held. Use for every dict access.
+    private func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return try body()
     }
 
-    /// Drop any models whose `lastAccess` is older than `modelIdleTTL`.
-    /// Safe to invoke concurrently with reads — Swift dictionary mutation on a
-    /// background queue and reads from the stdin thread already exhibit the
-    /// same data-race pattern that load/unload pairs have in the existing code;
-    /// adding eviction does not change the threading model.
+    /// Mark a custom CoreML model id as freshly accessed.
+    private func touchModel(_ id: String) {
+        withStateLock { modelLastAccess[id] = Date() }
+    }
+
+    /// Mark a contextual-embedding id as freshly accessed.
+    private func touchContextual(_ id: String) {
+        withStateLock { contextualLastAccess[id] = Date() }
+    }
+
+    /// Drop entries whose `lastAccess` is older than `modelIdleTTL` from both
+    /// stores. Held under `stateLock` so it can't race with concurrent
+    /// loadModel / embed / unload calls.
     private func evictStaleModels() {
         let cutoff = Date().addingTimeInterval(-Self.modelIdleTTL)
-        let stale = lastAccess.filter { $0.value < cutoff }.map { $0.key }
-        for id in stale {
-            models.removeValue(forKey: id)
-            contextualModels.removeValue(forKey: id)
-            lastAccess.removeValue(forKey: id)
+        withStateLock {
+            let staleModels = modelLastAccess.filter { $0.value < cutoff }.map { $0.key }
+            for id in staleModels {
+                models.removeValue(forKey: id)
+                modelLastAccess.removeValue(forKey: id)
+            }
+            let staleContextual = contextualLastAccess.filter { $0.value < cutoff }.map { $0.key }
+            for id in staleContextual {
+                contextualModels.removeValue(forKey: id)
+                contextualLastAccess.removeValue(forKey: id)
+            }
         }
     }
 
     // MARK: - Custom CoreML Models
 
     public func loadModel(id: String, options: CoreMLLoadOptions) throws -> CoreMLModelInfo {
-        guard models[id] == nil else {
-            throw JsonRpcError.invalidParams("Model already loaded with id: \(id)")
+        // Check duplicates under the lock — but a quick check first so we
+        // don't do filesystem work on an obvious dup.
+        try withStateLock {
+            if models[id] != nil {
+                throw JsonRpcError.invalidParams("Model already loaded with id: \(id)")
+            }
         }
 
         let modelURL = URL(fileURLWithPath: options.path)
@@ -207,50 +239,90 @@ public final class AppleCoreMLProvider: CoreMLProvider {
             sizeBytes: sizeBytes, modelType: "coreml"
         )
 
-        models[id] = LoadedModel(model: mlModel, info: info, modelBundle: modelBundle)
-        touch(id)
+        // Final check + insert under the lock — handles the (rare) TOCTOU
+        // window between the early check above and now.
+        try withStateLock {
+            if models[id] != nil {
+                throw JsonRpcError.invalidParams("Model already loaded with id: \(id)")
+            }
+            models[id] = LoadedModel(model: mlModel, info: info, modelBundle: modelBundle)
+            modelLastAccess[id] = Date()
+        }
         return info
     }
 
     public func unloadModel(id: String) throws {
-        if models.removeValue(forKey: id) != nil {
-            lastAccess.removeValue(forKey: id)
-            return
+        try withStateLock {
+            if models.removeValue(forKey: id) != nil {
+                modelLastAccess.removeValue(forKey: id)
+                return
+            }
+            if contextualModels.removeValue(forKey: id) != nil {
+                contextualLastAccess.removeValue(forKey: id)
+                return
+            }
+            throw JsonRpcError.invalidParams("No model loaded with id: \(id)")
         }
-        if contextualModels.removeValue(forKey: id) != nil {
-            lastAccess.removeValue(forKey: id)
-            return
-        }
-        throw JsonRpcError.invalidParams("No model loaded with id: \(id)")
     }
 
     public func modelInfo(id: String) throws -> CoreMLModelInfo {
-        if let loaded = models[id] {
-            touch(id)
-            return loaded.info
+        // Snapshot under the lock, then build the response outside.
+        enum Snapshot {
+            case model(CoreMLModelInfo)
+            case contextual(Any)
+            case missing
         }
-
-        if let model = contextualModels[id] {
-            touch(id)
+        let snap: Snapshot = withStateLock {
+            if let loaded = models[id] {
+                modelLastAccess[id] = Date()
+                return .model(loaded.info)
+            }
+            if let model = contextualModels[id] {
+                contextualLastAccess[id] = Date()
+                return .contextual(model)
+            }
+            return .missing
+        }
+        switch snap {
+        case .model(let info):
+            return info
+        case .contextual(let model):
             return contextualModelInfo(id: id, model: model)
+        case .missing:
+            throw JsonRpcError.invalidParams("No model loaded with id: \(id)")
         }
-
-        throw JsonRpcError.invalidParams("No model loaded with id: \(id)")
     }
 
     public func listModels() -> [CoreMLModelInfo] {
-        let coremlInfos = models.values.map(\.info)
-        let contextualInfos: [CoreMLModelInfo] = contextualModels.map { (id, model) in
+        // Snapshot the dictionary entries under the lock; build the info list
+        // outside so we don't hold the lock during contextualModelInfo() work.
+        struct Snapshot {
+            let coreml: [LoadedModel]
+            let contextual: [(String, Any)]
+        }
+        let snap: Snapshot = withStateLock {
+            Snapshot(coreml: Array(models.values), contextual: Array(contextualModels))
+        }
+        let coremlInfos = snap.coreml.map(\.info)
+        let contextualInfos: [CoreMLModelInfo] = snap.contextual.map { (id, model) in
             contextualModelInfo(id: id, model: model)
         }
         return coremlInfos + contextualInfos
     }
 
     public func embed(modelId: String, text: String) throws -> [Float] {
-        guard let loaded = models[modelId] else {
+        // Snapshot the LoadedModel reference under the lock, then do the
+        // (potentially heavy) embedding work outside.
+        let loaded: LoadedModel? = withStateLock {
+            if let m = models[modelId] {
+                modelLastAccess[modelId] = Date()
+                return m
+            }
+            return nil
+        }
+        guard let loaded = loaded else {
             throw JsonRpcError.invalidParams("No model loaded with id: \(modelId)")
         }
-        touch(modelId)
 
         // If swift-embeddings bundle is available (macOS 15+), use it
         if let bundle = loaded.modelBundle {
@@ -300,8 +372,10 @@ public final class AppleCoreMLProvider: CoreMLProvider {
         }
 
         try embedding.load()
-        contextualModels[id] = embedding
-        touch(id)
+        withStateLock {
+            contextualModels[id] = embedding
+            contextualLastAccess[id] = Date()
+        }
 
         return CoreMLModelInfo(
             id: id, path: "system://\(language)",
@@ -311,10 +385,15 @@ public final class AppleCoreMLProvider: CoreMLProvider {
     }
 
     public func contextualEmbed(modelId: String, text: String) throws -> [Float] {
-        guard let embedding = contextualModels[modelId] as? NLContextualEmbedding else {
+        // Snapshot under the lock, then run the embedding outside.
+        let embedding: NLContextualEmbedding? = withStateLock {
+            guard let e = contextualModels[modelId] as? NLContextualEmbedding else { return nil }
+            contextualLastAccess[modelId] = Date()
+            return e
+        }
+        guard let embedding = embedding else {
             throw JsonRpcError.invalidParams("No contextual model loaded with id: \(modelId)")
         }
-        touch(modelId)
 
         let result = try embedding.embeddingResult(for: text, language: embedding.languages.first ?? .english)
 
