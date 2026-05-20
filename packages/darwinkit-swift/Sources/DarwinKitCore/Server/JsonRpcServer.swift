@@ -34,9 +34,51 @@ public final class JsonRpcServer: NotificationSink {
         // Ignore SIGPIPE so broken-pipe returns EPIPE instead of killing the process
         signal(SIGPIPE, SIG_IGN)
 
+        // Clean shutdown on SIGTERM / SIGINT from the parent. The handler must be
+        // async-signal-safe — no Swift framework calls, just a stderr write and
+        // Darwin.exit(0). The SDK's close() escalates to these signals when
+        // stdin.end() doesn't produce graceful exit fast enough.
+        let shutdownHandler: @convention(c) (Int32) -> Void = { _ in
+            let msg = "[darwinkit] received signal, exiting\n"
+            msg.withCString { _ = Darwin.write(STDERR_FILENO, $0, strlen($0)) }
+            Darwin.exit(0)
+        }
+        signal(SIGTERM, shutdownHandler)
+        signal(SIGINT, shutdownHandler)
+
         // Disable stdout buffering — critical when piped to a parent process.
         // Without this, responses accumulate in a 4KB buffer and the parent never sees them.
         setbuf(stdout, nil)
+
+        // Watch the parent PID via kqueue NOTE_EXIT. This is faster + more
+        // reliable than waiting for stdin EOF — when the parent is SIGKILL'd
+        // by the OS (e.g. OOM), the EOF arrives only after the kernel closes
+        // the pipe, which can race with us being mid-call. NOTE_EXIT fires
+        // immediately on parent termination.
+        let parentPid = getppid()
+        if parentPid > 1 {
+            let kq = kqueue()
+            if kq != -1 {
+                var ev = kevent(
+                    ident: UInt(parentPid),
+                    filter: Int16(EVFILT_PROC),
+                    flags: UInt16(EV_ADD | EV_ENABLE | EV_ONESHOT),
+                    fflags: UInt32(NOTE_EXIT),
+                    data: 0,
+                    udata: nil
+                )
+                if kevent(kq, &ev, 1, nil, 0, nil) != -1 {
+                    DispatchQueue.global(qos: .utility).async {
+                        var out = kevent()
+                        if kevent(kq, nil, 0, &out, 1, nil) > 0 {
+                            let msg = "[darwinkit] parent (\(parentPid)) exited, shutting down\n"
+                            msg.withCString { _ = Darwin.write(STDERR_FILENO, $0, strlen($0)) }
+                            Darwin.exit(0)
+                        }
+                    }
+                }
+            }
+        }
 
         // Send ready notification so parent knows we're alive and what we support
         let capabilities = router.availableMethods()
@@ -53,7 +95,7 @@ public final class JsonRpcServer: NotificationSink {
             }
             // stdin closed — parent process is done
             self.log("stdin closed, shutting down")
-            exit(0)
+            Darwin.exit(0)
         }
         stdinThread.name = "darwinkit.stdin"
         stdinThread.start()
