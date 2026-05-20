@@ -26,6 +26,14 @@ export class Transport {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    // Let Node's event loop exit even if user code never calls close().
+    // We unref the child handle AND the stdio pipes — otherwise the readline
+    // 'data' listener on stdout keeps the loop alive forever.
+    // Don't unref stdin: we need it writable.
+    this.process.unref();
+    this.process.stdout?.unref?.();
+    this.process.stderr?.unref?.();
+
     this._alive = true;
 
     this.rl = createInterface({ input: this.process.stdout! });
