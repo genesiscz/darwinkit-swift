@@ -25,6 +25,35 @@ import { Reminders } from "./namespaces/reminders.js";
 import { Notifications } from "./namespaces/notifications.js";
 
 // ---------------------------------------------------------------------------
+// Process-exit reaper (defense in depth)
+// ---------------------------------------------------------------------------
+// Every live DarwinKit registers itself here so that on Node exit — for any
+// reason (natural completion, process.exit, uncaught exception, SIGINT/SIGTERM
+// that the user didn't handle and Node's default handler turns into exit) —
+// we SIGKILL the child synchronously. Runs in the 'exit' phase so we can't
+// await; just fire-and-forget kill() and let the kernel reap.
+
+const liveInstances = new Set<DarwinKit>();
+let reaperInstalled = false;
+
+function installReaper(): void {
+  if (reaperInstalled) return;
+  reaperInstalled = true;
+  process.on("exit", () => {
+    for (const dk of liveInstances) {
+      // Access transport via the internal property — synchronous SIGKILL only,
+      // no awaits allowed in 'exit' handlers.
+      const t = (dk as unknown as { transport: { kill: (s: NodeJS.Signals) => void } }).transport;
+      try {
+        t.kill("SIGKILL");
+      } catch {
+        // ignore — already dead
+      }
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
@@ -153,6 +182,9 @@ export class DarwinKit implements DarwinKitClient {
     this.calendar = new Calendar(this);
     this.reminders = new Reminders(this);
     this.notifications = new Notifications(this);
+
+    installReaper();
+    liveInstances.add(this);
   }
 
   get connected(): boolean {
@@ -182,6 +214,10 @@ export class DarwinKit implements DarwinKitClient {
    * guarantees the child has actually terminated before returning.
    */
   async close(): Promise<void> {
+    // Deregister from the reaper as soon as close() is invoked — even if we
+    // throw or the SIGKILL escalation never fires, we don't want to double-kill.
+    liveInstances.delete(this);
+
     // Idempotent: if we already closed cleanly, nothing to do.
     if (this.intentionallyClosed && this.transport.hasExited()) return;
     this.intentionallyClosed = true;
