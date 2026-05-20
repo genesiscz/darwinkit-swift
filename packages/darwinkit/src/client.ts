@@ -41,11 +41,10 @@ function installReaper(): void {
   reaperInstalled = true;
   process.on("exit", () => {
     for (const dk of liveInstances) {
-      // Access transport via the internal property — synchronous SIGKILL only,
-      // no awaits allowed in 'exit' handlers.
-      const t = (dk as unknown as { transport: { kill: (s: NodeJS.Signals) => void } }).transport;
+      // Use the dedicated internal method instead of a private-field cast —
+      // keeps the contract typed and stable if Transport's surface evolves.
       try {
-        t.kill("SIGKILL");
+        dk._killForReaper();
       } catch {
         // ignore — already dead
       }
@@ -209,6 +208,12 @@ export class DarwinKit implements DarwinKitClient {
    *   3. SIGTERM, wait another 500ms
    *   4. SIGKILL, wait another 500ms
    *
+   * The signals target the ChildProcess instance captured at the moment
+   * `transport.stop()` was called — NOT the mutable `transport.process` field.
+   * This makes `dk.close()` safe to overlap with a subsequent `dk.connect()`:
+   * the new child can spawn during the grace window without being SIGTERM'd
+   * by an in-flight close on the previous one.
+   *
    * Idempotent. Awaiting is optional — fire-and-forget `dk.close()` still
    * works (existing call sites need not change), but `await dk.close()`
    * guarantees the child has actually terminated before returning.
@@ -216,6 +221,7 @@ export class DarwinKit implements DarwinKitClient {
   async close(): Promise<void> {
     // Deregister from the reaper as soon as close() is invoked — even if we
     // throw or the SIGKILL escalation never fires, we don't want to double-kill.
+    // (If the consumer reconnects afterward, doConnect() re-adds the instance.)
     liveInstances.delete(this);
 
     // Idempotent: if we already closed cleanly, nothing to do.
@@ -224,6 +230,8 @@ export class DarwinKit implements DarwinKitClient {
     this._connected = false;
     this.connectPromise = null;
 
+    // Capture the live ChildProcess before we touch the transport's mutable
+    // state. All subsequent kill() calls target THIS proc, not transport.process.
     const proc = this.transport.stop();
     for (const [, pending] of this.pending) {
       clearTimeout(pending.timer);
@@ -231,11 +239,16 @@ export class DarwinKit implements DarwinKitClient {
     }
     this.pending.clear();
 
-    if (!proc || this.transport.hasExited()) return;
+    if (!proc) return;
+
+    const procExited = (): boolean =>
+      proc.exitCode !== null || proc.signalCode !== null;
+
+    if (procExited()) return;
 
     const waitForExit = (ms: number): Promise<void> =>
       new Promise((resolve) => {
-        if (this.transport.hasExited()) return resolve();
+        if (procExited()) return resolve();
         const t = setTimeout(resolve, ms);
         proc.once("exit", () => {
           clearTimeout(t);
@@ -243,13 +256,35 @@ export class DarwinKit implements DarwinKitClient {
         });
       });
 
+    const killProc = (signal: NodeJS.Signals): void => {
+      try {
+        proc.kill(signal);
+      } catch {
+        // already dead
+      }
+    };
+
     await waitForExit(500);
-    if (this.transport.hasExited()) return;
-    this.transport.kill("SIGTERM");
+    if (procExited()) return;
+    killProc("SIGTERM");
     await waitForExit(500);
-    if (this.transport.hasExited()) return;
-    this.transport.kill("SIGKILL");
+    if (procExited()) return;
+    killProc("SIGKILL");
     await waitForExit(500);
+  }
+
+  /**
+   * @internal
+   * Synchronous kill used by the module-level exit reaper. Calls `transport.kill`
+   * directly so it can fire in Node's `process.on("exit")` phase where awaits
+   * are not allowed. Not part of the public API — do not call from user code.
+   */
+  _killForReaper(): void {
+    try {
+      this.transport.kill("SIGKILL");
+    } catch {
+      // already dead
+    }
   }
 
   /** Sync dispose for `using dk = new DarwinKit()` — fire-and-forget close. */
@@ -371,6 +406,11 @@ export class DarwinKit implements DarwinKitClient {
 
   private async doConnect(): Promise<ReadyNotification> {
     this.intentionallyClosed = false;
+
+    // Re-register with the exit reaper on every connect. close() removes the
+    // instance; without this re-add the reaper wouldn't track a reused client
+    // after `await dk.close(); await dk.connect()`. Set.add is idempotent.
+    liveInstances.add(this);
 
     if (!this.resolvedBinary) {
       this.log("debug", "Resolving binary...");

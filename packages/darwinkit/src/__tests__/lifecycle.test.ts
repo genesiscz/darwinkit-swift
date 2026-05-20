@@ -11,6 +11,26 @@ async function countLiveChildren(parentPid: number): Promise<number> {
     .filter(Boolean).length;
 }
 
+/** Return the current direct-child darwinkit PIDs of `parentPid`. */
+function listChildPids(parentPid: number): number[] {
+  const ps = Bun.spawnSync(["pgrep", "-P", String(parentPid), "-f", "darwinkit"]);
+  if (ps.exitCode !== 0) return [];
+  return ps.stdout
+    .toString()
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n));
+}
+
+/** True iff a process with `pid` currently exists (any state). */
+function pidExists(pid: number): boolean {
+  // `kill -0` returns 0 if the process exists, 1 (ESRCH) if not.
+  const ps = Bun.spawnSync(["kill", "-0", String(pid)]);
+  return ps.exitCode === 0;
+}
+
 async function waitUntil(
   predicate: () => Promise<boolean> | boolean,
   budgetMs: number,
@@ -96,10 +116,18 @@ describe("DarwinKit lifecycle", () => {
       );
       expect(childUp).toBe(true);
 
+      // Capture the concrete child PIDs BEFORE killing the parent. After SIGKILL,
+      // any orphan darwinkit gets reparented to launchd (PID 1), so a
+      // `pgrep -P <dead-parent>` check would falsely return 0 even if the
+      // orphan still exists. Tracking explicit PIDs + `kill -0` is reliable.
+      const trackedChildren = listChildPids(proc.pid);
+      expect(trackedChildren.length).toBeGreaterThan(0);
+
       proc.kill("SIGKILL");
+      await proc.exited;
 
       const ok = await waitUntil(
-        async () => (await countLiveChildren(proc.pid)) === 0,
+        () => trackedChildren.every((pid) => !pidExists(pid)),
         3_000,
       );
       expect(ok).toBe(true);

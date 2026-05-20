@@ -218,6 +218,12 @@ public final class AppleLLMProvider: LLMProvider {
     private var lastAccess: [String: Date] = [:]
     private var evictionTimer: DispatchSourceTimer?
 
+    /// Synchronizes access to `sessions` and `lastAccess`. The eviction timer
+    /// fires on a utility queue; sessionCreate / sessionRespond / sessionClose
+    /// run on the stdin thread. NSLock keeps them serialized — Swift Dictionary
+    /// mutation under concurrent access is undefined behavior.
+    private let stateLock = NSLock()
+
     public init() {
         let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
         timer.schedule(
@@ -231,16 +237,20 @@ public final class AppleLLMProvider: LLMProvider {
         self.evictionTimer = timer
     }
 
-    private func touch(_ id: String) {
-        lastAccess[id] = Date()
+    private func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return try body()
     }
 
     private func evictStaleSessions() {
         let cutoff = Date().addingTimeInterval(-Self.sessionIdleTTL)
-        let stale = lastAccess.filter { $0.value < cutoff }.map { $0.key }
-        for id in stale {
-            sessions.removeValue(forKey: id)
-            lastAccess.removeValue(forKey: id)
+        withStateLock {
+            let stale = lastAccess.filter { $0.value < cutoff }.map { $0.key }
+            for id in stale {
+                sessions.removeValue(forKey: id)
+                lastAccess.removeValue(forKey: id)
+            }
         }
     }
 
@@ -368,20 +378,29 @@ public final class AppleLLMProvider: LLMProvider {
     }
 
     public func sessionCreate(params: LLMSessionCreateParams) throws {
-        guard sessions[params.sessionId] == nil else {
-            throw JsonRpcError.invalidParams("Session already exists: \(params.sessionId)")
-        }
-
         let session = makeSession(instructions: params.instructions)
-        sessions[params.sessionId] = session
-        touch(params.sessionId)
+        try withStateLock {
+            if sessions[params.sessionId] != nil {
+                throw JsonRpcError.invalidParams("Session already exists: \(params.sessionId)")
+            }
+            sessions[params.sessionId] = session
+            lastAccess[params.sessionId] = Date()
+        }
     }
 
     public func sessionRespond(params: LLMSessionRespondParams) throws -> LLMGenerateResult {
-        guard let session = sessions[params.sessionId] else {
+        // Snapshot the session reference under the lock, then perform the
+        // potentially long-running `session.respond(...)` outside.
+        let session: LanguageModelSession? = withStateLock {
+            if let s = sessions[params.sessionId] {
+                lastAccess[params.sessionId] = Date()
+                return s
+            }
+            return nil
+        }
+        guard let session = session else {
             throw JsonRpcError.invalidParams("No session with id: \(params.sessionId)")
         }
-        touch(params.sessionId)
 
         let options = makeOptions(temperature: params.temperature, maxTokens: params.maxTokens)
 
@@ -409,10 +428,12 @@ public final class AppleLLMProvider: LLMProvider {
     }
 
     public func sessionClose(sessionId: String) throws {
-        guard sessions.removeValue(forKey: sessionId) != nil else {
-            throw JsonRpcError.invalidParams("No session with id: \(sessionId)")
+        try withStateLock {
+            guard sessions.removeValue(forKey: sessionId) != nil else {
+                throw JsonRpcError.invalidParams("No session with id: \(sessionId)")
+            }
+            lastAccess.removeValue(forKey: sessionId)
         }
-        lastAccess.removeValue(forKey: sessionId)
     }
 
     public func available() -> LLMAvailabilityResult {
