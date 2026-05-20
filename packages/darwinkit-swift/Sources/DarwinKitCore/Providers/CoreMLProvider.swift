@@ -92,14 +92,29 @@ public protocol CoreMLProvider {
 // MARK: - Apple Implementation
 
 public final class AppleCoreMLProvider: CoreMLProvider {
+    /// Idle TTL for loaded models. Models not accessed for this long are evicted.
+    /// A single NLContextualEmbedding can be 100s of MB; without eviction a long-
+    /// lived consumer that loads many languages accumulates multi-GB heap.
+    private static let modelIdleTTL: TimeInterval = 600 // 10 min
+
+    /// How often to sweep for stale models. Each sweep is O(models), cheap.
+    private static let evictionInterval: TimeInterval = 60
+
     /// Loaded CoreML model bundles: id -> (MLModel, optional swift-embeddings bundle, dimensions)
     private var models: [String: LoadedModel] = [:]
 
     /// Loaded NLContextualEmbedding instances
     private var contextualModels: [String: Any] = [:]
 
+    /// Per-id last-access timestamp for idle TTL eviction. Shared across both
+    /// `models` and `contextualModels` since the id namespaces don't overlap.
+    private var lastAccess: [String: Date] = [:]
+
     /// Compiled model cache directory
     private let cacheDir: URL
+
+    /// Periodic eviction timer (lifetime-tied to this provider).
+    private var evictionTimer: DispatchSourceTimer?
 
     struct LoadedModel {
         let model: MLModel
@@ -111,6 +126,39 @@ public final class AppleCoreMLProvider: CoreMLProvider {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         self.cacheDir = base.appendingPathComponent("darwinkit/coreml", isDirectory: true)
         try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+
+        // Start the idle-eviction timer. It runs on a utility queue so we don't
+        // contend with the main-thread / stdin-thread request dispatch.
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(
+            deadline: .now() + Self.evictionInterval,
+            repeating: Self.evictionInterval
+        )
+        timer.setEventHandler { [weak self] in
+            self?.evictStaleModels()
+        }
+        timer.resume()
+        self.evictionTimer = timer
+    }
+
+    /// Mark an id as freshly accessed so it doesn't get evicted on the next sweep.
+    private func touch(_ id: String) {
+        lastAccess[id] = Date()
+    }
+
+    /// Drop any models whose `lastAccess` is older than `modelIdleTTL`.
+    /// Safe to invoke concurrently with reads — Swift dictionary mutation on a
+    /// background queue and reads from the stdin thread already exhibit the
+    /// same data-race pattern that load/unload pairs have in the existing code;
+    /// adding eviction does not change the threading model.
+    private func evictStaleModels() {
+        let cutoff = Date().addingTimeInterval(-Self.modelIdleTTL)
+        let stale = lastAccess.filter { $0.value < cutoff }.map { $0.key }
+        for id in stale {
+            models.removeValue(forKey: id)
+            contextualModels.removeValue(forKey: id)
+            lastAccess.removeValue(forKey: id)
+        }
     }
 
     // MARK: - Custom CoreML Models
@@ -160,14 +208,17 @@ public final class AppleCoreMLProvider: CoreMLProvider {
         )
 
         models[id] = LoadedModel(model: mlModel, info: info, modelBundle: modelBundle)
+        touch(id)
         return info
     }
 
     public func unloadModel(id: String) throws {
         if models.removeValue(forKey: id) != nil {
+            lastAccess.removeValue(forKey: id)
             return
         }
         if contextualModels.removeValue(forKey: id) != nil {
+            lastAccess.removeValue(forKey: id)
             return
         }
         throw JsonRpcError.invalidParams("No model loaded with id: \(id)")
@@ -175,10 +226,12 @@ public final class AppleCoreMLProvider: CoreMLProvider {
 
     public func modelInfo(id: String) throws -> CoreMLModelInfo {
         if let loaded = models[id] {
+            touch(id)
             return loaded.info
         }
 
         if let model = contextualModels[id] {
+            touch(id)
             return contextualModelInfo(id: id, model: model)
         }
 
@@ -197,6 +250,7 @@ public final class AppleCoreMLProvider: CoreMLProvider {
         guard let loaded = models[modelId] else {
             throw JsonRpcError.invalidParams("No model loaded with id: \(modelId)")
         }
+        touch(modelId)
 
         // If swift-embeddings bundle is available (macOS 15+), use it
         if let bundle = loaded.modelBundle {
@@ -247,6 +301,7 @@ public final class AppleCoreMLProvider: CoreMLProvider {
 
         try embedding.load()
         contextualModels[id] = embedding
+        touch(id)
 
         return CoreMLModelInfo(
             id: id, path: "system://\(language)",
@@ -259,6 +314,7 @@ public final class AppleCoreMLProvider: CoreMLProvider {
         guard let embedding = contextualModels[modelId] as? NLContextualEmbedding else {
             throw JsonRpcError.invalidParams("No contextual model loaded with id: \(modelId)")
         }
+        touch(modelId)
 
         let result = try embedding.embeddingResult(for: text, language: embedding.languages.first ?? .english)
 

@@ -209,9 +209,40 @@ import FoundationModels
 
 @available(macOS 26, *)
 public final class AppleLLMProvider: LLMProvider {
-    private var sessions: [String: LanguageModelSession] = [:]
+    /// Idle TTL for LLM sessions. Sessions carry conversation history in memory;
+    /// a forgotten sessionClose() would otherwise leak indefinitely.
+    private static let sessionIdleTTL: TimeInterval = 1800 // 30 min
+    private static let evictionInterval: TimeInterval = 60
 
-    public init() {}
+    private var sessions: [String: LanguageModelSession] = [:]
+    private var lastAccess: [String: Date] = [:]
+    private var evictionTimer: DispatchSourceTimer?
+
+    public init() {
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(
+            deadline: .now() + Self.evictionInterval,
+            repeating: Self.evictionInterval
+        )
+        timer.setEventHandler { [weak self] in
+            self?.evictStaleSessions()
+        }
+        timer.resume()
+        self.evictionTimer = timer
+    }
+
+    private func touch(_ id: String) {
+        lastAccess[id] = Date()
+    }
+
+    private func evictStaleSessions() {
+        let cutoff = Date().addingTimeInterval(-Self.sessionIdleTTL)
+        let stale = lastAccess.filter { $0.value < cutoff }.map { $0.key }
+        for id in stale {
+            sessions.removeValue(forKey: id)
+            lastAccess.removeValue(forKey: id)
+        }
+    }
 
     public func generate(params: LLMGenerateParams) throws -> LLMGenerateResult {
         let session = makeSession(instructions: params.systemInstructions)
@@ -343,12 +374,14 @@ public final class AppleLLMProvider: LLMProvider {
 
         let session = makeSession(instructions: params.instructions)
         sessions[params.sessionId] = session
+        touch(params.sessionId)
     }
 
     public func sessionRespond(params: LLMSessionRespondParams) throws -> LLMGenerateResult {
         guard let session = sessions[params.sessionId] else {
             throw JsonRpcError.invalidParams("No session with id: \(params.sessionId)")
         }
+        touch(params.sessionId)
 
         let options = makeOptions(temperature: params.temperature, maxTokens: params.maxTokens)
 
@@ -379,6 +412,7 @@ public final class AppleLLMProvider: LLMProvider {
         guard sessions.removeValue(forKey: sessionId) != nil else {
             throw JsonRpcError.invalidParams("No session with id: \(sessionId)")
         }
+        lastAccess.removeValue(forKey: sessionId)
     }
 
     public func available() -> LLMAvailabilityResult {
