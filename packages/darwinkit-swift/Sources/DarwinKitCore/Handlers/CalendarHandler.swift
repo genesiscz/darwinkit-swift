@@ -6,7 +6,7 @@ public final class CalendarHandler: MethodHandler {
 
     public var methods: [String] {
         [
-            "calendar.authorized", "calendar.calendars", "calendar.events", "calendar.event",
+            "calendar.authorized", "calendar.authorization_status", "calendar.calendars", "calendar.events", "calendar.event",
             "calendar.save_event", "calendar.remove_event",
             "calendar.calendar_item", "calendar.calendar_items_external",
             "calendar.sources", "calendar.source", "calendar.delegate_sources",
@@ -26,6 +26,8 @@ public final class CalendarHandler: MethodHandler {
         switch request.method {
         case "calendar.authorized":
             return try handleAuthorized(request)
+        case "calendar.authorization_status":
+            return provider.authorizationStatus().toDict()
         case "calendar.calendars":
             return try handleCalendars(request)
         case "calendar.events":

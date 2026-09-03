@@ -8,12 +8,17 @@ struct MockCalendarProvider: CalendarProvider {
     var calendars: [CalendarInfo] = []
     var events: [CalendarEventInfo] = []
     var authResult = CalendarAuthorizationResult(status: "fullAccess", authorized: true)
+    var statusResult = CalendarAuthorizationResult(status: "notDetermined", authorized: false)
     var shouldThrow: JsonRpcError? = nil
     var savedResult = CalendarSaveResult(success: true, identifier: "new-1", error: nil)
 
     func checkAuthorization() throws -> CalendarAuthorizationResult {
         if let err = shouldThrow { throw err }
         return authResult
+    }
+
+    func authorizationStatus() -> CalendarAuthorizationResult {
+        statusResult
     }
 
     func listCalendars() throws -> [CalendarInfo] {
@@ -185,6 +190,21 @@ struct CalendarHandlerTests {
         #expect(result["authorized"] as? Bool == false)
     }
 
+    // MARK: - calendar.authorization_status
+
+    @Test("authorization_status reads the status without requesting access")
+    func authorizationStatusDoesNotPrompt() throws {
+        var mock = MockCalendarProvider()
+        mock.statusResult = CalendarAuthorizationResult(status: "writeOnly", authorized: false)
+        mock.shouldThrow = JsonRpcError.permissionDenied("checkAuthorization must not run")
+        let handler = CalendarHandler(provider: mock)
+        let request = makeRequest(method: "calendar.authorization_status")
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["status"] as? String == "writeOnly")
+        #expect(result["authorized"] as? Bool == false)
+    }
+
     // MARK: - calendar.calendars
 
     @Test("calendars returns empty array when none exist")
@@ -309,12 +329,12 @@ struct CalendarHandlerTests {
 
     // MARK: - Method registration
 
-    @Test("handler registers all 19 calendar methods")
+    @Test("handler registers all 20 calendar methods")
     func methodRegistration() {
         let handler = CalendarHandler(provider: MockCalendarProvider())
         let expected: Set<String> = [
-            "calendar.authorized", "calendar.calendars", "calendar.events", "calendar.event",
-            "calendar.save_event", "calendar.remove_event",
+            "calendar.authorized", "calendar.authorization_status", "calendar.calendars", "calendar.events",
+            "calendar.event", "calendar.save_event", "calendar.remove_event",
             "calendar.calendar_item", "calendar.calendar_items_external",
             "calendar.sources", "calendar.source", "calendar.delegate_sources",
             "calendar.save_calendar", "calendar.remove_calendar",

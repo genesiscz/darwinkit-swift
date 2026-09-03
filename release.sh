@@ -133,6 +133,9 @@ create_app_bundle() {
   cp "$src_binary" "$app_dir/MacOS/darwinkit"
   chmod 755 "$app_dir/MacOS/darwinkit"
   cp "$SWIFT_DIR/Sources/DarwinKit/Info.plist" "$app_dir/Info.plist"
+  if [ -n "${VERSION:-}" ]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$app_dir/Info.plist"
+  fi
 
   # Ad-hoc codesign so macOS accepts the bundle
   codesign --force --sign - "$app_dir/MacOS/darwinkit" 2>/dev/null || true

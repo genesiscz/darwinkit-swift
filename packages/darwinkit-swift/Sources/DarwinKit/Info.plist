@@ -9,10 +9,22 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.6.0</string>
+	<string>0.8.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSUserNotificationAlertStyle</key>
 	<string>alert</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>DarwinKit reads and writes calendar events for the tools that use it.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>DarwinKit adds calendar events for the tools that use it.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>DarwinKit reads and writes reminders for the tools that use it.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>DarwinKit looks up contacts for the tools that use it.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>DarwinKit transcribes audio on this device for the tools that use it.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>DarwinKit records audio for the tools that use it.</string>
 </dict>
 </plist>

@@ -1251,6 +1251,10 @@ export interface MethodMap {
     params: Record<string, never>;
     result: CalendarAuthorizedResult;
   };
+  "calendar.authorization_status": {
+    params: Record<string, never>;
+    result: CalendarAuthorizedResult;
+  };
   "calendar.calendars": {
     params: Record<string, never>;
     result: CalendarCalendarsResult;
@@ -1328,6 +1332,10 @@ export interface MethodMap {
     result: CalendarAuthorizedResult;
   };
   // Reminders
+  "reminders.authorization_status": {
+    params: Record<string, never>;
+    result: RemindersAuthorizedResult;
+  };
   "reminders.authorized": {
     params: Record<string, never>;
     result: RemindersAuthorizedResult;

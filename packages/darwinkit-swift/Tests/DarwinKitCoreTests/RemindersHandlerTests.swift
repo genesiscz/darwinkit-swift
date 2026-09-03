@@ -8,12 +8,17 @@ struct MockRemindersProvider: RemindersProvider {
     var lists: [ReminderListInfo] = []
     var reminders: [ReminderInfo] = []
     var authResult = RemindersAuthorizationResult(status: "fullAccess", authorized: true)
+    var statusResult = RemindersAuthorizationResult(status: "notDetermined", authorized: false)
     var shouldThrow: JsonRpcError? = nil
     var savedReminder = CalendarSaveResult(success: true, identifier: "new-rem-1", error: nil)
 
     func checkAuthorization() throws -> RemindersAuthorizationResult {
         if let err = shouldThrow { throw err }
         return authResult
+    }
+
+    func authorizationStatus() -> RemindersAuthorizationResult {
+        statusResult
     }
 
     func listReminderLists() throws -> [ReminderListInfo] {
@@ -156,6 +161,21 @@ struct RemindersHandlerTests {
         #expect(result["authorized"] as? Bool == false)
     }
 
+    // MARK: - reminders.authorization_status
+
+    @Test("authorization_status reads the status without requesting access")
+    func authorizationStatusDoesNotPrompt() throws {
+        var mock = MockRemindersProvider()
+        mock.statusResult = RemindersAuthorizationResult(status: "denied", authorized: false)
+        mock.shouldThrow = JsonRpcError.permissionDenied("checkAuthorization must not run")
+        let handler = RemindersHandler(provider: mock)
+        let request = makeRequest(method: "reminders.authorization_status")
+        let result = try handler.handle(request) as! [String: Any]
+
+        #expect(result["status"] as? String == "denied")
+        #expect(result["authorized"] as? Bool == false)
+    }
+
     // MARK: - reminders.lists
 
     @Test("lists returns empty array when none exist")
@@ -251,11 +271,11 @@ struct RemindersHandlerTests {
 
     // MARK: - Method registration
 
-    @Test("handler registers all 9 reminders methods")
+    @Test("handler registers all 10 reminders methods")
     func methodRegistration() {
         let handler = RemindersHandler(provider: MockRemindersProvider())
         let expected: Set<String> = [
-            "reminders.authorized", "reminders.lists", "reminders.items",
+            "reminders.authorized", "reminders.authorization_status", "reminders.lists", "reminders.items",
             "reminders.save_item", "reminders.remove_item", "reminders.complete_item",
             "reminders.incomplete", "reminders.completed",
             "reminders.request_full_access",

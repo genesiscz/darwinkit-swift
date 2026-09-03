@@ -138,6 +138,9 @@ public protocol RemindersProvider {
     /// Check/request reminders authorization.
     func checkAuthorization() throws -> RemindersAuthorizationResult
 
+    /// Read the current authorization status without ever prompting the user.
+    func authorizationStatus() -> RemindersAuthorizationResult
+
     /// List all reminder lists (calendars of type .reminder).
     func listReminderLists() throws -> [ReminderListInfo]
 
@@ -185,6 +188,10 @@ public final class AppleRemindersProvider: RemindersProvider {
     }()
 
     public init() {}
+
+    public func authorizationStatus() -> RemindersAuthorizationResult {
+        remindersAuthResult(from: EKEventStore.authorizationStatus(for: .reminder))
+    }
 
     public func checkAuthorization() throws -> RemindersAuthorizationResult {
         let status = EKEventStore.authorizationStatus(for: .reminder)

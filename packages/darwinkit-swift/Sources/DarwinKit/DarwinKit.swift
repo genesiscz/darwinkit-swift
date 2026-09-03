@@ -18,7 +18,17 @@ struct Serve: ParsableCommand {
         abstract: "Run in server mode — reads JSON-RPC from stdin, writes responses to stdout."
     )
 
+    @Flag(
+        name: .long,
+        help: "Become your own TCC responsible process (DarwinKit.app owns the Calendar/Reminders/Contacts grants instead of the terminal that launched you). Also enabled by DARWINKIT_DISCLAIM=1."
+    )
+    var disclaim = false
+
     mutating func run() {
+        if disclaim || ProcessInfo.processInfo.environment["DARWINKIT_DISCLAIM"] == "1" {
+            Disclaim.respawnIfNeeded()
+        }
+
         let server = buildServerWithRouter()
         server.start()
     }

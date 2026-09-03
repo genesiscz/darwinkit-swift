@@ -6,7 +6,7 @@ public final class RemindersHandler: MethodHandler {
 
     public var methods: [String] {
         [
-            "reminders.authorized", "reminders.lists", "reminders.items",
+            "reminders.authorized", "reminders.authorization_status", "reminders.lists", "reminders.items",
             "reminders.save_item", "reminders.remove_item", "reminders.complete_item",
             "reminders.incomplete", "reminders.completed",
             "reminders.request_full_access",
@@ -21,6 +21,8 @@ public final class RemindersHandler: MethodHandler {
         switch request.method {
         case "reminders.authorized":
             return try handleAuthorized(request)
+        case "reminders.authorization_status":
+            return provider.authorizationStatus().toDict()
         case "reminders.lists":
             return try handleLists(request)
         case "reminders.items":

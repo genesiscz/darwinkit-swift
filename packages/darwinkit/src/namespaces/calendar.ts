@@ -176,6 +176,17 @@ export class Calendar {
     );
   }
 
+  /** Current status only. Unlike `authorized()`, never triggers the macOS permission prompt. */
+  authorizationStatus(options?: {
+    timeout?: number;
+  }): Promise<CalendarAuthorizedResult> {
+    return this.client.call(
+      "calendar.authorization_status",
+      {} as Record<string, never>,
+      options,
+    );
+  }
+
   calendars(options?: { timeout?: number }): Promise<CalendarCalendarsResult> {
     return this.client.call(
       "calendar.calendars",

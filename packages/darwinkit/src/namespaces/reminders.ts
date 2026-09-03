@@ -143,6 +143,17 @@ export class Reminders {
     );
   }
 
+  /** Current status only. Unlike `authorized()`, never triggers the macOS permission prompt. */
+  authorizationStatus(options?: {
+    timeout?: number;
+  }): Promise<RemindersAuthorizedResult> {
+    return this.client.call(
+      "reminders.authorization_status",
+      {} as Record<string, never>,
+      options,
+    );
+  }
+
   lists(options?: { timeout?: number }): Promise<RemindersListsResult> {
     return this.client.call(
       "reminders.lists",
