@@ -61,6 +61,12 @@ export interface DarwinKitOptions {
   binary?: string;
   /** Default request timeout in ms. Default: 30000. */
   timeout?: number;
+  /**
+   * Make DarwinKit.app its own TCC responsible process (`serve --disclaim`), so Calendar,
+   * Reminders and Contacts grants attach to DarwinKit instead of the terminal or app that
+   * launched this process. Leave off when the host app already owns the grants. Default: false.
+   */
+  disclaim?: boolean;
   /** Auto-reconnect configuration. */
   reconnect?: {
     enabled?: boolean; // default: true
@@ -139,6 +145,7 @@ export class DarwinKit implements DarwinKitClient {
   private connectPromise: Promise<ReadyNotification> | null = null;
 
   private readonly binaryPath: string | undefined;
+  private readonly disclaim: boolean;
   private resolvedBinary: string | null = null;
   private readonly defaultTimeout: number;
   private readonly reconnectConfig: {
@@ -157,6 +164,7 @@ export class DarwinKit implements DarwinKitClient {
 
   constructor(options?: DarwinKitOptions) {
     this.binaryPath = options?.binary;
+    this.disclaim = options?.disclaim ?? false;
     this.defaultTimeout = options?.timeout ?? 30_000;
     this.reconnectConfig = {
       enabled: options?.reconnect?.enabled ?? true,
@@ -426,6 +434,7 @@ export class DarwinKit implements DarwinKitClient {
 
       this.transport.start({
         binary: this.resolvedBinary!,
+        disclaim: this.disclaim,
         onLine: (line: string) => {
           this.handleLine(line, readyReceived, (notification) => {
             readyReceived = true;

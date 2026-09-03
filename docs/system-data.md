@@ -211,7 +211,21 @@ const { status, authorized } = await dk.calendar.authorized()
 | `status` | `"fullAccess" \| "writeOnly" \| "denied" \| "restricted" \| "notDetermined"` | TCC authorization status |
 | `authorized` | `boolean` | `true` if read access is granted |
 
-> **Note:** macOS 14 introduced granular calendar permissions. A status of `"writeOnly"` means the app can create events but cannot read existing ones.
+> **Note:** macOS 14 introduced granular calendar permissions. A status of `"writeOnly"` means the app can create events but cannot read existing ones. Under `writeOnly`, `calendar.calendars` returns one placeholder calendar (`VIRTUAL_APP_CALENDAR_UUID`) and `calendar.events` returns nothing, so an empty result is not proof of an empty calendar.
+
+### calendar.authorizationStatus()
+
+Read the current status without ever showing the macOS permission prompt (`authorized()` prompts when the status is `notDetermined`). Use this in diagnostics.
+
+```typescript
+const { status } = await dk.calendar.authorizationStatus()
+```
+
+**Returns:** `CalendarAuthorizedResult`
+
+### Who owns the permission
+
+TCC grants Calendar, Reminders and Contacts access to the *responsible process*: for a CLI that is the terminal (or the launchd job) that started it, not the darwinkit child. Start the server with `darwinkit serve --disclaim` (SDK: `new DarwinKit({ disclaim: true })`, or `DARWINKIT_DISCLAIM=1`) and DarwinKit.app becomes the responsible process itself, so one grant serves every terminal. Leave it off when your own app bundle should own the grants.
 
 ### calendar.calendars()
 
@@ -329,6 +343,14 @@ console.log(event.notes)
 ## Reminders
 
 Read reminder lists and items from Apple's Reminders framework (`EKEventStore` with entity type `.reminder`).
+
+### reminders.authorizationStatus()
+
+Read the current status without prompting. Same contract as `calendar.authorizationStatus()`.
+
+```typescript
+const { status } = await dk.reminders.authorizationStatus()
+```
 
 ### reminders.authorized()
 

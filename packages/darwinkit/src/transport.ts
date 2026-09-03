@@ -3,6 +3,8 @@ import { createInterface, type Interface } from "node:readline";
 
 export interface TransportOptions {
   binary: string;
+  /** Pass `--disclaim` so the binary becomes its own TCC responsible process. */
+  disclaim?: boolean;
   onLine: (line: string) => void;
   onExit: (code: number | null) => void;
   onError: (error: Error) => void;
@@ -22,7 +24,8 @@ export class Transport {
       throw new Error("Transport already started");
     }
 
-    this.process = spawn(options.binary, ["serve"], {
+    const args = options.disclaim ? ["serve", "--disclaim"] : ["serve"];
+    this.process = spawn(options.binary, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
 

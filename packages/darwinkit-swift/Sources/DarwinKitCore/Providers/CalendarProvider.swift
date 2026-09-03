@@ -150,6 +150,9 @@ public protocol CalendarProvider {
     /// Check/request calendar authorization. Returns current status.
     func checkAuthorization() throws -> CalendarAuthorizationResult
 
+    /// Read the current authorization status without ever prompting the user.
+    func authorizationStatus() -> CalendarAuthorizationResult
+
     /// List all calendars for events.
     func listCalendars() throws -> [CalendarInfo]
 
@@ -261,6 +264,10 @@ public final class AppleCalendarProvider: CalendarProvider {
         @unknown default:
             return CalendarAuthorizationResult(status: "notDetermined", authorized: false)
         }
+    }
+
+    public func authorizationStatus() -> CalendarAuthorizationResult {
+        calendarAuthResult(from: EKEventStore.authorizationStatus(for: .event))
     }
 
     public func listCalendars() throws -> [CalendarInfo] {

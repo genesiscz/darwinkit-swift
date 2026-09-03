@@ -79,6 +79,7 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 | `contacts.get` | Get contact by ID | Contacts |
 | `contacts.search` | Search contacts | Contacts |
 | `calendar.authorized` | Check/request calendar access | EventKit |
+| `calendar.authorization_status` | Read calendar access status, never prompts | EventKit |
 | `calendar.calendars` | List calendars | EventKit |
 | `calendar.events` | Fetch events in date range | EventKit |
 | `calendar.event` | Get event by ID | EventKit |
@@ -95,6 +96,7 @@ Your App (any language)          DarwinKit (Swift)          Apple Frameworks
 | `calendar.request_write_only_access` | Request write-only calendar access | EventKit |
 | `calendar.request_full_access` | Request full calendar access (upgrade from writeOnly) | EventKit |
 | `reminders.authorized` | Check/request reminders access | EventKit |
+| `reminders.authorization_status` | Read reminders access status, never prompts | EventKit |
 | `reminders.request_full_access` | Request full reminders access (upgrade from limited) | EventKit |
 | `reminders.lists` | List reminder lists | EventKit |
 | `reminders.items` | Fetch reminders (with alarms, flagged state) | EventKit |
