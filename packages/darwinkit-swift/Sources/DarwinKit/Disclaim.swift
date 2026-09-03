@@ -49,6 +49,9 @@ enum Disclaim {
             envp.forEach { free($0) }
         }
 
+        // Handlers before the spawn: the child inherits SIG_IGN but resets handlers to SIG_DFL.
+        forwardSignalsToChild()
+
         var pid: pid_t = 0
         let spawnRc = posix_spawn(&pid, executable, nil, &attrs, argv, envp)
         if spawnRc != 0 {
@@ -57,7 +60,6 @@ enum Disclaim {
         }
 
         childPid = pid
-        forwardSignalsToChild()
         watchParentDeath()
 
         var status: Int32 = 0
