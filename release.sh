@@ -113,7 +113,9 @@ cd "$SWIFT_DIR"
 swift build -c release --arch arm64
 cd "$SCRIPT_DIR"
 
-BINARY="$SWIFT_DIR/.build/arm64-apple-macosx/release/darwinkit"
+# SwiftPM's newer build system writes to .build/out/Products/Release, the older one to
+# .build/arm64-apple-macosx/release: ask SwiftPM instead of hardcoding either layout.
+BINARY="$(cd "$SWIFT_DIR" && swift build -c release --arch arm64 --show-bin-path)/darwinkit"
 
 if [ ! -f "$BINARY" ]; then
   echo "Error: Binary not found at $BINARY"
