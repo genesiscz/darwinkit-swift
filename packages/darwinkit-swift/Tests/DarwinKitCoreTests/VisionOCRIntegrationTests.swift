@@ -87,18 +87,19 @@ struct VisionOCRIntegrationTests {
             params[key] = AnyCodable(value)
         }
         let handler = VisionHandler(provider: AppleVisionProvider())
-        let result = try handler.handle(JsonRpcRequest(id: "e2e", method: "vision.ocr", params: params)) as! [String: Any]
-        let blocks = result["blocks"] as! [[String: Any]]
-        let bounds = blocks.map { block -> CGRect in
-            let b = block["bounds"] as! [String: Any]
+        let response = try handler.handle(JsonRpcRequest(id: "e2e", method: "vision.ocr", params: params))
+        let result = try #require(response as? [String: Any])
+        let blocks = try #require(result["blocks"] as? [[String: Any]])
+        let bounds = try blocks.map { block -> CGRect in
+            let b = try #require(block["bounds"] as? [String: Any])
             return CGRect(
-                x: b["x"] as! CGFloat,
-                y: b["y"] as! CGFloat,
-                width: b["width"] as! CGFloat,
-                height: b["height"] as! CGFloat
+                x: try #require(b["x"] as? CGFloat),
+                y: try #require(b["y"] as? CGFloat),
+                width: try #require(b["width"] as? CGFloat),
+                height: try #require(b["height"] as? CGFloat)
             )
         }
-        return (result["text"] as! String, bounds)
+        return (try #require(result["text"] as? String), bounds)
     }
 
     private func describe(_ rects: [CGRect]) -> String {
