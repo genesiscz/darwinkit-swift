@@ -15,8 +15,46 @@ public struct OCRBlock {
     public let bounds: CGRect  // Normalized 0..1 coordinates, origin bottom-left
 }
 
+/// The part of the image that `vision.ocr` reads. Normalized 0..1, origin TOP-LEFT (screen coordinates),
+/// unlike Vision, whose rectangles start at the bottom-left.
+public struct OCRRegion: Equatable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+
+    public init(x: Double, y: Double, width: Double, height: Double) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    /// The same rectangle in Vision's normalized space (origin bottom-left), for `regionOfInterest`.
+    public var visionRect: CGRect {
+        CGRect(x: x, y: 1 - y - height, width: width, height: height)
+    }
+
+    /// Vision reports observations under a region of interest relative to that region. This maps one back to
+    /// full-image normalized coordinates (origin bottom-left), the space `vision.ocr` always returns.
+    public static func fullImageRect(_ box: CGRect, in roi: CGRect) -> CGRect {
+        CGRect(
+            x: roi.origin.x + box.origin.x * roi.width,
+            y: roi.origin.y + box.origin.y * roi.height,
+            width: box.width * roi.width,
+            height: box.height * roi.height
+        )
+    }
+}
+
 public protocol VisionProvider {
-    func recognizeText(imagePath: String, languages: [String], level: RecognitionLevel) throws -> OCRResult
+    func recognizeText(
+        imagePath: String,
+        languages: [String],
+        level: RecognitionLevel,
+        region: OCRRegion?,
+        languageCorrection: Bool
+    ) throws -> OCRResult
     func classifyImage(imagePath: String, maxResults: Int) throws -> ClassifyResult
     func generateFeaturePrint(imagePath: String) throws -> FeaturePrintResult
     func computeSimilarity(imagePath1: String, imagePath2: String) throws -> SimilarityResult
@@ -120,7 +158,13 @@ public struct AppleVisionProvider: VisionProvider {
 
     public init() {}
 
-    public func recognizeText(imagePath: String, languages: [String], level: RecognitionLevel) throws -> OCRResult {
+    public func recognizeText(
+        imagePath: String,
+        languages: [String],
+        level: RecognitionLevel,
+        region: OCRRegion?,
+        languageCorrection: Bool
+    ) throws -> OCRResult {
         let url = URL(fileURLWithPath: imagePath)
 
         guard FileManager.default.fileExists(atPath: imagePath) else {
@@ -128,6 +172,7 @@ public struct AppleVisionProvider: VisionProvider {
         }
 
         let handler = VNImageRequestHandler(url: url, options: [:])
+        let roi = region?.visionRect
         var blocks: [OCRBlock] = []
         var fullText: [String] = []
         var visionError: Error?
@@ -146,15 +191,18 @@ public struct AppleVisionProvider: VisionProvider {
                 blocks.append(OCRBlock(
                     text: candidate.string,
                     confidence: candidate.confidence,
-                    bounds: observation.boundingBox
+                    bounds: roi.map { OCRRegion.fullImageRect(observation.boundingBox, in: $0) } ?? observation.boundingBox
                 ))
             }
         }
 
         request.recognitionLevel = level == .accurate ? .accurate : .fast
-        request.usesLanguageCorrection = true
+        request.usesLanguageCorrection = languageCorrection
         if !languages.isEmpty {
             request.recognitionLanguages = languages
+        }
+        if let roi = roi {
+            request.regionOfInterest = roi
         }
 
         try handler.perform([request])

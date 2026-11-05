@@ -64,7 +64,16 @@ public final class VisionHandler: MethodHandler {
             throw JsonRpcError.invalidParams("level must be 'accurate' or 'fast'")
         }
 
-        let result = try provider.recognizeText(imagePath: path, languages: languages, level: level)
+        let region = try Self.parseRegion(request)
+        let languageCorrection = try Self.parseLanguageCorrection(request)
+
+        let result = try provider.recognizeText(
+            imagePath: path,
+            languages: languages,
+            level: level,
+            region: region,
+            languageCorrection: languageCorrection
+        )
 
         return [
             "text": result.text,
@@ -81,6 +90,72 @@ public final class VisionHandler: MethodHandler {
                 ] as [String: Any]
             }
         ] as [String: Any]
+    }
+
+    /// `region`: `{ x, y, width, height }`, normalized 0..1, origin top-left. Absent or null means the whole image.
+    static func parseRegion(_ request: JsonRpcRequest) throws -> OCRRegion? {
+        guard let raw = request.params?["region"]?.value, !(raw is NSNull) else {
+            return nil
+        }
+        guard let dict = raw as? [String: Any] else {
+            throw JsonRpcError.invalidParams("region must be an object { x, y, width, height }")
+        }
+
+        func number(_ key: String) throws -> Double {
+            switch dict[key] {
+            case nil, is NSNull:
+                throw JsonRpcError.invalidParams("Missing required param: region.\(key)")
+            case is Bool:
+                throw JsonRpcError.invalidParams("region.\(key) must be a number")
+            case let value as Double:
+                return value
+            case let value as Int:
+                return Double(value)
+            default:
+                throw JsonRpcError.invalidParams("region.\(key) must be a number")
+            }
+        }
+
+        let x = try number("x")
+        let y = try number("y")
+        let width = try number("width")
+        let height = try number("height")
+
+        guard (0...1).contains(x) else {
+            throw JsonRpcError.invalidParams("region.x must be between 0 and 1")
+        }
+        guard (0...1).contains(y) else {
+            throw JsonRpcError.invalidParams("region.y must be between 0 and 1")
+        }
+        guard width > 0, width <= 1 else {
+            throw JsonRpcError.invalidParams("region.width must be greater than 0 and at most 1")
+        }
+        guard height > 0, height <= 1 else {
+            throw JsonRpcError.invalidParams("region.height must be greater than 0 and at most 1")
+        }
+
+        // A tile computed as 1/3 + 2/3 can land a rounding error past 1; accept that and clamp it, because
+        // Vision fails the whole request on a region outside the unit square.
+        let tolerance = 1e-9
+        guard x + width <= 1 + tolerance else {
+            throw JsonRpcError.invalidParams("region.x + region.width must be at most 1")
+        }
+        guard y + height <= 1 + tolerance else {
+            throw JsonRpcError.invalidParams("region.y + region.height must be at most 1")
+        }
+
+        return OCRRegion(x: x, y: y, width: min(width, 1 - x), height: min(height, 1 - y))
+    }
+
+    /// `language_correction`: a boolean, default true (Vision's `usesLanguageCorrection`).
+    static func parseLanguageCorrection(_ request: JsonRpcRequest) throws -> Bool {
+        guard let raw = request.params?["language_correction"]?.value, !(raw is NSNull) else {
+            return true
+        }
+        guard let value = raw as? Bool else {
+            throw JsonRpcError.invalidParams("language_correction must be a boolean")
+        }
+        return value
     }
 
     private func handleClassify(_ request: JsonRpcRequest) throws -> Any {

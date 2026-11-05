@@ -60,7 +60,19 @@ class MockVisionProvider: VisionProvider {
     /// Records the symbologies received by detectBarcodes calls.
     var receivedSymbologies: [String]?
 
-    func recognizeText(imagePath: String, languages: [String], level: RecognitionLevel) throws -> OCRResult {
+    /// Records the OCR options received by the last recognizeText call.
+    var receivedRegion: OCRRegion?
+    var receivedLanguageCorrection: Bool?
+
+    func recognizeText(
+        imagePath: String,
+        languages: [String],
+        level: RecognitionLevel,
+        region: OCRRegion?,
+        languageCorrection: Bool
+    ) throws -> OCRResult {
+        receivedRegion = region
+        receivedLanguageCorrection = languageCorrection
         if let err = shouldThrow { throw err }
         // Simulate file-not-found for missing paths
         if imagePath.contains("nonexistent") {
@@ -128,6 +140,23 @@ class MockVisionProvider: VisionProvider {
 private func makeRequest(method: String, params: [String: Any] = [:]) -> JsonRpcRequest {
     let codableParams = params.mapValues { AnyCodable($0) }
     return JsonRpcRequest(id: "test", method: method, params: codableParams)
+}
+
+/// The message of the invalid-params error `body` throws, or nil when it throws nothing or another error.
+private func invalidParamsMessage(_ body: () throws -> Any) -> String? {
+    do {
+        _ = try body()
+        return nil
+    } catch JsonRpcError.invalidParams(let message) {
+        return message
+    } catch {
+        return nil
+    }
+}
+
+private func approxEqual(_ a: CGRect, _ b: CGRect, tolerance: CGFloat = 1e-9) -> Bool {
+    abs(a.origin.x - b.origin.x) <= tolerance && abs(a.origin.y - b.origin.y) <= tolerance
+        && abs(a.width - b.width) <= tolerance && abs(a.height - b.height) <= tolerance
 }
 
 // MARK: - Tests
@@ -283,6 +312,189 @@ struct VisionHandlerTests {
         #expect(result["text"] as? String == "")
         let blocks = result["blocks"] as! [[String: Any]]
         #expect(blocks.isEmpty)
+    }
+
+    // MARK: - region and language_correction
+
+    @Test("ocr passes no region and language correction on by default")
+    func ocrOptionDefaults() throws {
+        let mock = MockVisionProvider()
+        let handler = VisionHandler(provider: mock)
+        _ = try handler.handle(makeRequest(method: "vision.ocr", params: ["path": "/tmp/test.png"]))
+
+        #expect(mock.receivedRegion == nil)
+        #expect(mock.receivedLanguageCorrection == true)
+    }
+
+    @Test("ocr treats a null region and a null language_correction as absent")
+    func ocrOptionNulls() throws {
+        let mock = MockVisionProvider()
+        let handler = VisionHandler(provider: mock)
+        _ = try handler.handle(makeRequest(method: "vision.ocr", params: [
+            "path": "/tmp/test.png", "region": NSNull(), "language_correction": NSNull()
+        ]))
+
+        #expect(mock.receivedRegion == nil)
+        #expect(mock.receivedLanguageCorrection == true)
+    }
+
+    @Test("ocr passes language_correction false and true through")
+    func ocrLanguageCorrection() throws {
+        let mock = MockVisionProvider()
+        let handler = VisionHandler(provider: mock)
+
+        _ = try handler.handle(makeRequest(method: "vision.ocr", params: [
+            "path": "/tmp/test.png", "language_correction": false
+        ]))
+        #expect(mock.receivedLanguageCorrection == false)
+
+        _ = try handler.handle(makeRequest(method: "vision.ocr", params: [
+            "path": "/tmp/test.png", "language_correction": true
+        ]))
+        #expect(mock.receivedLanguageCorrection == true)
+    }
+
+    @Test("ocr refuses a language_correction that is not a boolean")
+    func ocrLanguageCorrectionNotBoolean() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        for value: Any in ["false", 0, 1] {
+            let message = invalidParamsMessage {
+                try handler.handle(makeRequest(method: "vision.ocr", params: [
+                    "path": "/tmp/test.png", "language_correction": value
+                ]))
+            }
+            #expect(message?.contains("language_correction") == true, "value \(value): \(message ?? "no error")")
+        }
+    }
+
+    @Test("ocr passes a valid region through in top-left coordinates")
+    func ocrValidRegion() throws {
+        let mock = MockVisionProvider()
+        let handler = VisionHandler(provider: mock)
+        _ = try handler.handle(makeRequest(method: "vision.ocr", params: [
+            "path": "/tmp/test.png",
+            "region": ["x": 0.5, "y": 0.25, "width": 0.5, "height": 0.5]
+        ]))
+
+        #expect(mock.receivedRegion == OCRRegion(x: 0.5, y: 0.25, width: 0.5, height: 0.5))
+    }
+
+    @Test("ocr accepts integer region fields and the whole image")
+    func ocrIntegerRegion() throws {
+        let mock = MockVisionProvider()
+        let handler = VisionHandler(provider: mock)
+        _ = try handler.handle(makeRequest(method: "vision.ocr", params: [
+            "path": "/tmp/test.png",
+            "region": ["x": 0, "y": 0, "width": 1, "height": 1]
+        ]))
+
+        #expect(mock.receivedRegion == OCRRegion(x: 0, y: 0, width: 1, height: 1))
+    }
+
+    @Test("ocr clamps a region whose edge passes 1 by a rounding error only")
+    func ocrRegionRoundingClamp() throws {
+        let mock = MockVisionProvider()
+        let handler = VisionHandler(provider: mock)
+        _ = try handler.handle(makeRequest(method: "vision.ocr", params: [
+            "path": "/tmp/test.png",
+            "region": ["x": 0.7, "y": 0.1, "width": 0.3 + 1e-12, "height": 0.9 + 1e-12]
+        ]))
+
+        let region = try #require(mock.receivedRegion)
+        #expect(region.x + region.width <= 1)
+        #expect(region.y + region.height <= 1)
+    }
+
+    @Test("ocr refuses each invalid region with an error that names the field")
+    func ocrInvalidRegions() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        let valid: [String: Any] = ["x": 0.1, "y": 0.1, "width": 0.5, "height": 0.5]
+        func with(_ key: String, _ value: Any?) -> [String: Any] {
+            var region = valid
+            region[key] = value
+            return region
+        }
+
+        let cases: [(name: String, region: Any, field: String)] = [
+            ("not an object", "left half", "region"),
+            ("an array", [0, 0, 1, 1], "region"),
+            ("missing x", with("x", nil), "region.x"),
+            ("missing y", with("y", nil), "region.y"),
+            ("missing width", with("width", nil), "region.width"),
+            ("missing height", with("height", nil), "region.height"),
+            ("null x", with("x", NSNull()), "region.x"),
+            ("string x", with("x", "0.1"), "region.x"),
+            ("boolean width", with("width", true), "region.width"),
+            ("negative x", with("x", -0.1), "region.x"),
+            ("x above 1", with("x", 1.5), "region.x"),
+            ("negative y", with("y", -0.01), "region.y"),
+            ("y above 1", with("y", 2), "region.y"),
+            ("zero width", with("width", 0), "region.width"),
+            ("negative width", with("width", -0.2), "region.width"),
+            ("width above 1", with("width", 1.2), "region.width"),
+            ("zero height", with("height", 0.0), "region.height"),
+            ("negative height", with("height", -1), "region.height"),
+            ("height above 1", with("height", 1.01), "region.height"),
+            ("right edge past 1", ["x": 0.6, "y": 0.0, "width": 0.5, "height": 0.5], "region.x + region.width"),
+            ("bottom edge past 1", ["x": 0.0, "y": 0.7, "width": 0.5, "height": 0.4], "region.y + region.height"),
+            ("x at 1 leaves no width", ["x": 1, "y": 0, "width": 0.1, "height": 1], "region.x + region.width"),
+        ]
+
+        for testCase in cases {
+            let message = invalidParamsMessage {
+                try handler.handle(makeRequest(method: "vision.ocr", params: [
+                    "path": "/tmp/test.png", "region": testCase.region
+                ]))
+            }
+            #expect(
+                message?.contains(testCase.field) == true,
+                "\(testCase.name): expected an invalid-params error naming \(testCase.field), got \(message ?? "no error")"
+            )
+        }
+    }
+
+    @Test("an invalid region surfaces as JSON-RPC error -32602")
+    func ocrInvalidRegionErrorCode() {
+        let handler = VisionHandler(provider: MockVisionProvider())
+        do {
+            _ = try handler.handle(makeRequest(method: "vision.ocr", params: [
+                "path": "/tmp/test.png", "region": ["x": 0, "y": 0, "width": 0, "height": 1]
+            ]))
+            Issue.record("expected an error")
+        } catch let error as JsonRpcError {
+            #expect(error.body.code == -32602)
+            #expect(error.body.message.contains("region.width"))
+        } catch {
+            Issue.record("unexpected error \(error)")
+        }
+    }
+
+    @Test("OCRRegion converts top-left origin to Vision's bottom-left origin")
+    func ocrRegionVisionRect() {
+        #expect(approxEqual(
+            OCRRegion(x: 0.1, y: 0.2, width: 0.3, height: 0.4).visionRect,
+            CGRect(x: 0.1, y: 0.4, width: 0.3, height: 0.4)
+        ))
+        // The top half in screen terms is the upper half in Vision's space.
+        #expect(approxEqual(
+            OCRRegion(x: 0, y: 0, width: 1, height: 0.5).visionRect,
+            CGRect(x: 0, y: 0.5, width: 1, height: 0.5)
+        ))
+        #expect(approxEqual(OCRRegion(x: 0, y: 0, width: 1, height: 1).visionRect, CGRect(x: 0, y: 0, width: 1, height: 1)))
+    }
+
+    @Test("OCRRegion maps a region-relative box back to full-image coordinates")
+    func ocrRegionFullImageRect() {
+        let rightHalf = CGRect(x: 0.5, y: 0, width: 0.5, height: 1)
+        #expect(approxEqual(
+            OCRRegion.fullImageRect(CGRect(x: 0.5, y: 0.5, width: 0.5, height: 0.25), in: rightHalf),
+            CGRect(x: 0.75, y: 0.5, width: 0.25, height: 0.25)
+        ))
+        let quadrant = CGRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5)
+        #expect(approxEqual(
+            OCRRegion.fullImageRect(CGRect(x: 0, y: 0, width: 1, height: 1), in: quadrant),
+            quadrant
+        ))
     }
 
     // MARK: - Method registration
