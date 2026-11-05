@@ -61,11 +61,30 @@ for (const block of result.blocks) {
 
 #### Parameters -- `OCRParams`
 
-| Parameter   | Type               | Default       | Description                                       |
-| ----------- | ------------------ | ------------- | ------------------------------------------------- |
-| `path`      | `string`           | **required**  | Absolute path to the image file.                  |
-| `languages` | `string[]`         | `["en-US"]`   | BCP 47 language codes for recognition priority.   |
-| `level`     | `RecognitionLevel` | `"accurate"`  | `"accurate"` for best quality, `"fast"` for speed.|
+| Parameter             | Type               | Default       | Description                                       |
+| --------------------- | ------------------ | ------------- | ------------------------------------------------- |
+| `path`                | `string`           | **required**  | Absolute path to the image file.                  |
+| `languages`           | `string[]`         | `["en-US"]`   | BCP 47 language codes for recognition priority.   |
+| `level`               | `RecognitionLevel` | `"accurate"`  | `"accurate"` for best quality, `"fast"` for speed.|
+| `region`              | `OCRRegion`        | whole image   | Read only this part of the image (see below).     |
+| `language_correction` | `boolean`          | `true`        | Vision's `usesLanguageCorrection`. `false` returns the raw recognition results. |
+
+**`OCRRegion`** is `{ x, y, width, height }`, normalized 0 to 1 with the origin at the **top-left** corner (screen
+coordinates). `width` and `height` must be greater than 0, and `x + width` and `y + height` at most 1. Any other
+rectangle, or one with a missing field, is refused with a JSON-RPC invalid-params error (`-32602`) that names the field.
+A region saves you cropping the file yourself, and it lets you read a wide screenshot in tiles:
+
+```ts
+// Read a 3440x1440 screenshot as two side-by-side tiles, without language correction.
+const tiles = [
+  { x: 0, y: 0, width: 0.5, height: 1 },
+  { x: 0.5, y: 0, width: 0.5, height: 1 },
+]
+for (const region of tiles) {
+  const { blocks } = await dk.vision.ocr({ path: "/tmp/screen.png", region, language_correction: false })
+  // block.bounds are full-image coordinates, so blocks from both tiles share one space.
+}
+```
 
 #### Return Type -- `OCRResult`
 
@@ -81,6 +100,9 @@ for (const block of result.blocks) {
 | `text`       | `string`    | Text content of this block.                    |
 | `confidence` | `number`    | Recognition confidence, 0.0 to 1.0.           |
 | `bounds`     | `OCRBounds` | Bounding rectangle `{ x, y, width, height }`. |
+
+`OCRBounds` are normalized 0 to 1 over the **whole image**, with the origin at the **bottom-left** corner (Vision's
+space). This holds with a `region` too: the boxes are mapped back from the region to the full image.
 
 ---
 
@@ -758,6 +780,7 @@ import type {
   // OCR
   RecognitionLevel,
   OCRParams,
+  OCRRegion,
   OCRBounds,
   OCRBlock,
   OCRResult,

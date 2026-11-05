@@ -77,6 +77,9 @@ await dk.nlp.language({ text: "Bonjour" })                       // { language: 
 ```typescript
 await dk.vision.ocr({ path: "/tmp/img.png" })
 await dk.vision.ocr({ path: "/tmp/img.png", languages: ["en-US", "de-DE"], level: "fast" })
+// Read only the right half (top-left origin, 0-1), without language correction.
+// Returned block bounds stay in full-image coordinates (bottom-left origin).
+await dk.vision.ocr({ path: "/tmp/img.png", region: { x: 0.5, y: 0, width: 0.5, height: 1 }, language_correction: false })
 ```
 
 ### Auth

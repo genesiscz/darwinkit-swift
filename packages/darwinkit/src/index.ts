@@ -54,6 +54,7 @@ export type {
   // Vision
   RecognitionLevel,
   OCRParams,
+  OCRRegion,
   OCRBounds,
   OCRBlock,
   OCRResult,

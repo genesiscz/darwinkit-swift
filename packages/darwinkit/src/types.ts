@@ -82,11 +82,25 @@ export interface LanguageResult {
 
 export type RecognitionLevel = "accurate" | "fast";
 
+/**
+ * The part of the image to read. Normalized 0 to 1, origin at the TOP-LEFT corner (screen coordinates).
+ * `x + width` and `y + height` must be at most 1, and `width` and `height` greater than 0.
+ * Note: returned `OCRBlock.bounds` stay in full-image coordinates with a BOTTOM-LEFT origin.
+ */
+export interface OCRRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 export interface OCRParams {
   path: string;
   languages?: string[]; // default: ["en-US"]
   level?: RecognitionLevel; // default: "accurate"
+  region?: OCRRegion; // default: the whole image
+  language_correction?: boolean; // default: true
 }
+/** Normalized 0 to 1 in full-image coordinates, origin at the BOTTOM-LEFT corner (Vision's space). */
 export interface OCRBounds {
   x: number;
   y: number;

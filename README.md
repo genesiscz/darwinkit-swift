@@ -405,10 +405,26 @@ Extract text from images using Apple Vision.
 | `path` | string | yes | — |
 | `languages` | string[] | no | `["en-US"]` |
 | `level` | string | no | `"accurate"` |
+| `region` | object `{x, y, width, height}` | no | whole image |
+| `language_correction` | bool | no | `true` |
 
 Returns `{ "text": "...", "blocks": [{"text": "...", "confidence": 0.99, "bounds": {"x":0.1,"y":0.8,"width":0.3,"height":0.05}}] }`.
 
-Bounds are normalized (0-1), origin at bottom-left. Supports JPEG, PNG, TIFF, HEIC, PDF.
+Bounds are normalized (0-1) over the whole image, origin at bottom-left. Supports JPEG, PNG, TIFF, HEIC, PDF.
+
+`region` reads only part of the image. It is normalized (0-1) with the origin at the **top-left** corner, like screen
+coordinates; `width` and `height` must be above 0, and `x + width` and `y + height` at most 1. Anything else is an
+invalid-params error (`-32602`) that names the field. The returned bounds stay in full-image coordinates (bottom-left
+origin), also with a region. `language_correction: false` turns off Vision's language correction (`usesLanguageCorrection`)
+and returns the raw recognition results.
+
+```json
+{"jsonrpc":"2.0","id":"2","method":"vision.ocr","params":{
+  "path": "/tmp/screenshot.png",
+  "region": {"x": 0.5, "y": 0, "width": 0.5, "height": 1},
+  "language_correction": false
+}}
+```
 
 ### coreml.load_model
 
